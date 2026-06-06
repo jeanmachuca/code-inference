@@ -46,3 +46,15 @@ docker run --rm -v code-inference-ai_model_data:/models -v "$PWD:/host" alpine \
 The **inference** service mounts `/models` read-only and passes `-m /models/model.gguf` to `llama-server` by default.
 
 Do **not** commit `.gguf` files to git (see `.gitignore`).
+
+To quickly restart the stack, run the following script:
+
+```bash
+./restart.sh
+```
+
+To download a model that works, run the following command:
+
+```bash
+curl -L "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf" -o ./models/Meta-Llama-3-1B-Instruct-Q4_K_M.gguf
+```
