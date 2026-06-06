@@ -1,19 +1,24 @@
 {
-    "$schema": "https://opencode.ai/config.json",
-    "provider": {
-      "code-inference": {
-        "npm": "@ai-sdk/openai-compatible",
-        "name": "Local Code Inference Server",
-        "options": {
-          "baseURL": "http://localhost:8080/v1"
-        },
-        "models": {
-          "Meta-Llama-3-1B-Instruct-Q4_K_M.gguf": {
-            "name": "Meta Llama 3 1B Instruct",
-            "contextWindow": 4096
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "code-inference": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Llama.cpp Local Server",
+      "options": {
+        "baseURL": "http://localhost:8080/v1"
+      },
+      "models": {
+        "qwen2.5-coder-3b-instruct-q4_k_m.gguf": {
+          "name": "Qwen 2.5 Coder 3B",
+          "limit": {
+            "context":65536,
+            "output":32768
           }
+
+          
         }
       }
-    },
-    "model": "code-inference/Meta-Llama-3-1B-Instruct-Q4_K_M.gguf"
-  }
+    }
+  },
+  "model": "code-inference/qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+}

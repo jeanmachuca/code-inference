@@ -17,16 +17,16 @@ services:
     command:
       - "-m"
       - "/models/${MODEL_FILENAME:-model.gguf}"
+      - "--jinja"
       - "--host"
       - "0.0.0.0"
       - "--port"
       - "8080"
-      - "-c"
-      - "${CONTEXT_SIZE:-4096}"
-      - "-n"
-      - "${MAX_TOKENS:-256}"
-      - "-t"
-      - "${THREADS:-2}"
+      - "--ctx-size"
+      - "16384"
+      - "--threads"
+      - "6"
+      - "--jinja"
     ports:
       - "8080:8080"
     networks:

@@ -58,3 +58,5 @@ To download a model that works, run the following command:
 ```bash
 curl -L "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf" -o ./models/Meta-Llama-3-1B-Instruct-Q4_K_M.gguf
 ```
+
+curl -L https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf -o ./models/qwen2.5-coder-3b-instruct-q4_k_m.gguf

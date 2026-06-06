@@ -13,3 +13,4 @@ docs/models/*.gguf
 !docs/models/README.md
 models/*
 !models/README.md
+opencode.json
