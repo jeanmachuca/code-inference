@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+*.gguf
+*.bin
+docs/models/*.gguf
+!docs/models/README.md
+models/*
+!models/README.md

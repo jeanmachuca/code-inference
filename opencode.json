@@ -1,0 +1,19 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "provider": {
+      "code-inference": {
+        "npm": "@ai-sdk/openai-compatible",
+        "name": "Local Code Inference Server",
+        "options": {
+          "baseURL": "http://localhost:8080/v1"
+        },
+        "models": {
+          "Meta-Llama-3-1B-Instruct-Q4_K_M.gguf": {
+            "name": "Meta Llama 3 1B Instruct",
+            "contextWindow": 4096
+          }
+        }
+      }
+    },
+    "model": "code-inference/Meta-Llama-3-1B-Instruct-Q4_K_M.gguf"
+  }

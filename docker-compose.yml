@@ -1,0 +1,66 @@
+# code-inference AI — local stack (see docs/architecture.md)
+# Place a GGUF checkpoint in the model_data volume before starting inference (docs/models/README.md).
+#
+# Profiles:
+#   stack  — inference + api (default dev stack): docker compose --profile stack up
+#   tools  — llama-stack (Meta llama-model CLI): docker compose --profile tools run --rm …
+
+services:
+  inference:
+    container_name: llama-inference
+    profiles:
+      - stack
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    volumes:
+      - model_data:/models:ro
+    command:
+      - "-m"
+      - "/models/${MODEL_FILENAME:-model.gguf}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+      - "-c"
+      - "${CONTEXT_SIZE:-4096}"
+      - "-n"
+      - "${MAX_TOKENS:-256}"
+      - "-t"
+      - "${THREADS:-2}"
+    ports:
+      - "8080:8080"
+    networks:
+      - internal
+
+  api:
+    container_name: llama-api
+    profiles:
+      - stack
+    build:
+      context: .
+      dockerfile: src/services/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      INFERENCE_URL: ${INFERENCE_URL:-http://inference:8080}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
+      MAX_PROMPT_CHARS: ${MAX_PROMPT_CHARS:-8000}
+    depends_on:
+      - inference
+    networks:
+      - internal
+    volumes:
+      - training_data:/training:rw
+
+volumes:
+  model_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./models # This points Docker directly to your new folder
+  training_data:
+
+networks:
+  internal:
