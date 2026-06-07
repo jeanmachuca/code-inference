@@ -92,6 +92,10 @@ services:
     volumes:
       - ${PWD}:/workspace
       - ~/.ssh:/home/opencode/.ssh:ro
+      - opencode_config:/home/opencode/.config/opencode
+      - opencode_data:/home/opencode/.local/share/opencode
+      - opencode_state:/home/opencode/.local/state/opencode
+      - opencode_cache:/home/opencode/.cache/opencode
 
 volumes:
   model_data:
