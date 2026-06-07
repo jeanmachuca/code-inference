@@ -12,8 +12,8 @@
 
 FROM ghcr.io/anomalyco/opencode
 
-# Git is needed by opencode's git-aware features
-RUN apk add --no-cache git
+# Git + SSH are needed by opencode's git-aware features (push, pull)
+RUN apk add --no-cache git openssh
 
 # Create non-root user for running opencode
 RUN addgroup -S opencode && adduser -S -h /home/opencode -G opencode opencode
