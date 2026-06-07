@@ -4,9 +4,8 @@ RUN apk --update --no-cache add \
     docker-cli \
     docker-cli-compose
 
-COPY . /repo
-WORKDIR /repo
-
+COPY . /workspace
+WORKDIR /workspace
 VOLUME /workspace
 
-ENTRYPOINT ["/repo/start.sh"]
+ENTRYPOINT ["start.sh"]
