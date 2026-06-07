@@ -12,8 +12,11 @@
 
 FROM ghcr.io/anomalyco/opencode
 
-# Git is needed by opencode's git-aware features
-RUN apk add --no-cache git
+# Git + SSH are needed by opencode's git-aware features (push, pull)
+RUN apk add --no-cache git openssh
+
+# Dev dependencies for linting/formatting (pre-commit, ruff, mypy)
+RUN pip install --no-cache-dir pre-commit==4.1.0 ruff==0.9.6 mypy==1.15.0
 
 # Create non-root user for running opencode
 RUN addgroup -S opencode && adduser -S -h /home/opencode -G opencode opencode

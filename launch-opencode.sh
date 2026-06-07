@@ -6,4 +6,4 @@ if [ "$1" = "--full-isolation" ]; then
   PROJECT_FLAG="-p $NAME_SUFFIX"
 fi
 
-docker compose $PROJECT_FLAG --profile tools run --rm --name "opencode-$NAME_SUFFIX" opencode
+docker compose $PROJECT_FLAG --profile tools run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans opencode $1

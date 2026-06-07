@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, Header, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -24,15 +25,38 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 
 
 class ChatMessage(BaseModel):
+    model_config = ConfigDict(extra='allow')
     role: str
     content: str | None = None
 
 
 class ChatCompletionRequest(BaseModel):
+    model_config = ConfigDict(extra='allow')
     model: str = Field(default='local')
     messages: list[ChatMessage]
     max_tokens: int | None = None
     temperature: float | None = None
+    top_p: float | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+    stop: str | list[str] | None = None
+    seed: int | None = None
+    stream: bool | None = None
+
+
+@app.on_event('startup')
+async def wait_for_inference():
+    for i in range(30):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(f'{settings.inference_url}/v1/models')
+                if r.status_code == 200:
+                    logger.info('inference ready')
+                    return
+        except Exception:
+            pass
+        await asyncio.sleep(2)
+    logger.warning('inference not ready after 60s')
 
 
 @app.get('/health')
@@ -60,7 +84,7 @@ async def chat_completions(
     request: Request,
     body: ChatCompletionRequest,
     x_code_inference_intent: str | None = Header(default=None, alias='X-code_inference-Intent'),
-) -> JSONResponse:
+) -> JSONResponse | StreamingResponse:
     request_id = str(uuid.uuid4())
     raw_messages = [m.model_dump() for m in body.messages]
 
@@ -74,19 +98,43 @@ async def chat_completions(
         'model': body.model,
         'messages': pr.messages,
     }
-    if body.max_tokens is not None:
-        forward['max_tokens'] = body.max_tokens
-    if body.temperature is not None:
-        forward['temperature'] = body.temperature
+    for field in (
+        'max_tokens',
+        'temperature',
+        'top_p',
+        'frequency_penalty',
+        'presence_penalty',
+        'seed',
+        'stop',
+    ):
+        val = getattr(body, field, None)
+        if val is not None:
+            forward[field] = val
+    if body.model_extra:
+        forward.update(body.model_extra)
 
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        inf = await client.post(
-            f'{settings.inference_url}/v1/chat/completions',
-            json=forward,
-            headers={'Content-Type': 'application/json'},
+    inf_url = f'{settings.inference_url}/v1/chat/completions'
+
+    if body.stream:
+        logger.info(
+            'chat_completion streaming request_id=%s tags=%s truncated=%s pii_masked=%s',
+            request_id,
+            pr.tags,
+            pr.truncated,
+            pr.pii_masked,
+        )
+        return StreamingResponse(
+            _stream_chat(forward, inf_url),
+            media_type='text/event-stream',
+            headers={
+                'X-Request-Id': request_id,
+                'X-Prompt-Truncated': '1' if pr.truncated else '0',
+                'X-Prompt-Pii-Masked': '1' if pr.pii_masked else '0',
+            },
         )
 
-    # Log metadata only (no raw prompts) — see docs/requirements.md
+    inf = await _inference_request(forward, inf_url)
+
     logger.info(
         'chat_completion request_id=%s tags=%s truncated=%s pii_masked=%s inference_status=%s',
         request_id,
@@ -110,3 +158,29 @@ async def chat_completions(
             'X-Prompt-Pii-Masked': '1' if pr.pii_masked else '0',
         },
     )
+
+
+async def _stream_chat(forward: dict[str, Any], url: str):
+    async with (
+        httpx.AsyncClient(timeout=300.0) as client,
+        client.stream('POST', url, json=forward) as resp,
+    ):
+        async for chunk in resp.aiter_bytes():
+            yield chunk
+
+
+async def _inference_request(
+    forward: dict[str, Any],
+    url: str,
+    timeout: float = 300.0,
+) -> httpx.Response:
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                return await client.post(url, json=forward)
+        except (httpx.ConnectError, httpx.TimeoutException) as e:
+            last_exc = e
+            if attempt < 2:
+                await asyncio.sleep(2**attempt)
+    raise last_exc  # type: ignore[arg-type]
