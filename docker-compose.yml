@@ -3,7 +3,7 @@
 #
 # Profiles:
 #   stack  — inference + api (default dev stack): docker compose --profile stack up
-#   tools  — llama-stack (Meta llama-model CLI): docker compose --profile tools run --rm …
+#   tools  — llama-stack, opencode (CLI tools): docker compose --profile tools run --rm …
 
 services:
   inference-vllm:
@@ -71,6 +71,26 @@ services:
     volumes:
       - training_data:/training:rw
 
+  opencode:
+    container_name: opencode
+    profiles:
+      - tools
+    build:
+      context: .
+      dockerfile: src/opencode-stack/Dockerfile
+    stdin_open: true   # -i (interactive)
+    tty: true           # -t (pseudo-TTY)
+    user: opencode
+    environment:
+      - XDG_CONFIG_HOME=/home/opencode/.config
+      - XDG_DATA_HOME=/home/opencode/.local/share
+      - XDG_STATE_HOME=/home/opencode/.local/state
+      - XDG_CACHE_HOME=/home/opencode/.cache
+    networks:
+      - internal
+    volumes:
+      - ${PWD}:/workspace
+
 volumes:
   model_data:
     driver: local
@@ -79,6 +99,10 @@ volumes:
       o: bind
       device: ./models # This points Docker directly to your new folder
   training_data:
+  opencode_config:
+  opencode_data:
+  opencode_state:
+  opencode_cache:
 
 networks:
   internal:
