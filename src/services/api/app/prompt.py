@@ -28,7 +28,10 @@ class PromptResult:
     pii_masked: bool = False
 
 
-def _apply_char_cap(messages: list[dict[str, Any]], max_chars: int) -> tuple[list[dict[str, Any]], bool]:
+def _apply_char_cap(
+    messages: list[dict[str, Any]],
+    max_chars: int,
+) -> tuple[list[dict[str, Any]], bool]:
     """
     Ensure total character count of string contents does not exceed max_chars
     by truncating the last user message only.
