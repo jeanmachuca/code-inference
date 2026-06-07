@@ -5,7 +5,7 @@
       "npm": "@ai-sdk/openai-compatible",
       "name": "Llama.cpp Local Server",
       "options": {
-        "baseURL": "http://localhost:8080/v1"
+        "baseURL": "http://api:8000/v1"
       },
       "models": {
         "qwen2.5-coder-3b-instruct-q4_k_m.gguf": {
