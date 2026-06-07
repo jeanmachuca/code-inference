@@ -1,47 +1,68 @@
-# code-inference-ai
+# code-inference
 
-AI assistant component for code-inference. **Documentation:** **[docs/](docs/)** (requirements, **[architecture](docs/architecture.md)**, **[rate limits](docs/rate-limits.md)**, plan). **Implementation:** **[src/](src/)** (API service); **tests:** **[tests/](tests/)**. Compose build context is the **project root** (see `docker-compose.yml`). **Default branch:** `development`. Branching and releases: **[docs/git-workflow.md](docs/git-workflow.md)** (Gitflow, SemVer, tags `vMAJOR.MINOR.PATCH`).
-
-## Stack (development)
-
-- **Docker Compose** — `api` (FastAPI gateway + prompt management) and `inference` (`ghcr.io/ggml-org/llama.cpp:server`).
-- **Compose profiles** — **`stack`**: `inference` + `api`; **`tools`**: `llama-stack` (Meta **`llama-model`** CLI). Use `docker compose --profile stack up` (see [docs/models/README.md](docs/models/README.md)).
-- **Volumes** — `model_data` (GGUF weights), `training_data` (for future training jobs).
-
-## Prerequisites
-
-- Docker with Compose v2
+OpenCode AI CLI launcher — runs opencode in your project with a preconfigured local inference stack.
 
 ## Quick start
 
-1. Copy **`.env.example`** to **`.env`** and adjust if needed.
-2. Obtain a **GGUF** checkpoint (see **[docs/models/README.md](docs/models/README.md)** for where to download, how to verify the file, and how to copy it into the `model_data` volume as **`model.gguf`** or set **`MODEL_FILENAME`**).
-3. **Build** and **run**:
+```bash
+docker pull ghcr.io/jeanmachuca/code-inference
 
-   ```bash
-   make build
-   docker compose --profile stack up
-   ```
+# Run opencode in your current project (compose mode — needs repo clone)
+docker run -it --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$(pwd):$(pwd)" \
+  -w "$(pwd)" \
+  ghcr.io/jeanmachuca/code-inference
 
-4. **API** (after inference is healthy): `http://localhost:8000`  
-   - `GET /health` — liveness  
-   - `GET /health/ready` — checks inference `/v1/models`  
-   - `POST /v1/chat/completions` — OpenAI-compatible proxy (after [prompt preprocessing](src/services/api/app/prompt.py))
+# Run with isolated state (works from any directory)
+docker run -it --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$(pwd):$(pwd)" \
+  -w "$(pwd)" \
+  ghcr.io/jeanmachuca/code-inference --fresh
+```
 
-## Tests (no GPU / no model required for unit tests)
+## How it works
+
+The image contains the full [code-inference-ai](https://github.com/jeanmachuca/code-inference) repo at `/repo` with Docker CLI and Compose installed. Published to `ghcr.io/jeanmachuca/code-inference`. The entrypoint `start.sh` delegates to one of two launchers:
+
+| Flag | Launcher | Mechanism | State |
+|------|----------|-----------|-------|
+| *(none)* | `launch-opencode.sh` | `docker compose --profile tools run --rm opencode` | Ephemeral (no volumes) |
+| `--fresh` | `launch-fresh-opencode.sh` | `docker run ... ghcr.io/anomalyco/opencode` with named volumes | Persistent across runs |
+
+The launchers build and run the opencode container with the repo's compose file, mounting your project directory as the workspace. The local inference backend (`llama.cpp`, API, prompt processing) runs alongside via `docker compose --profile stack up` if needed.
+
+> **Docker socket (DooD, not DinD):** The image binds the host's Docker socket (`/var/run/docker.sock`), so `docker` and `docker compose` commands inside the container are executed by the **host's** Docker daemon. This is Docker-outside-of-Docker (socket binding), not Docker-in-Docker (which would require `--privileged` and running a nested `dockerd`). The launch scripts talk to the host daemon directly — no nested runtime needed.
+
+## Requirements
+
+- Docker with Compose v2
+- Docker socket mounted (`-v /var/run/docker.sock:/var/run/docker.sock`)
+- Your project directory mounted at the same path (`-v "$(pwd):$(pwd)" -w "$(pwd)"`)
+
+## Development
+
+See [AGENTS.md](AGENTS.md) for dev commands and repo architecture.
+
+### Stack services
+
+| Service | Container | Profile | Image |
+|---------|-----------|---------|-------|
+| `inference` | `llama-inference` | `stack` | `ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538` |
+| `api` | `llama-api` | `stack` | `src/services/api/Dockerfile` |
+| `opencode` | `opencode` | `tools` | `src/opencode-stack/Dockerfile` |
+
+### Quick start (development)
+
+```bash
+cp .env.example .env
+# Place a GGUF in ./models/
+make build && make up
+```
+
+### Tests
 
 ```bash
 make test
 ```
-
-Runs `pytest` inside the `api` container (`--no-deps` so inference is not required).
-
-## Documentation
-
-| Path | Description |
-|------|-------------|
-| [docs/](docs/) | Requirements, architecture, ADRs, regulations |
-| [docs/models/](docs/models/README.md) | GGUF weights: sourcing, verification, Docker `model_data` volume |
-| [src/](src/) | API service |
-| [tests/](tests/) | Pytest suite (run via `make test` in Docker) |
-# code-inference
