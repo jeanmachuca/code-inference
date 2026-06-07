@@ -21,7 +21,7 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 |--------|---------|
 | Ruff lint | `ruff check .` |
 | Ruff format check | `ruff format --check .` |
-| mypy | `mypy src/` |
+| mypy | `mypy --config-file=pyproject.toml --no-strict-optional --ignore-missing-imports src/` |
 | Pre-commit (all hooks) | `pre-commit run --all-files` |
 
 ## Architecture
@@ -32,7 +32,7 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 - **Compose profiles:** `stack` (inference+api, default), `tools` (opencode CLI), `alternate-inference` (vLLM — experimental, not wired). Build context is project root.
 - **Volumes:** `model_data` (bind-mount `./models/:ro`), `training_data` (named, **destroyed by `restart.sh`**).
 - **Stack Dockerfiles:** `src/services/api/Dockerfile` (python:3.12-alpine, uvicorn), `src/inference-vllm/`, `src/llama-stack/`, `src/ollama-stack/`, `src/opencode-stack/` (standalone builds outside default stack).
-- **Inference container** starts with `--jinja --tools all --ctx-size ${CONTEXT_SIZE:-16384}`.
+- **Inference container** starts with `--jinja --tools ${TOOLS:-all} --ctx-size ${CONTEXT_SIZE:-16384} --threads ${THREADS:-6}`. Image: `ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538`.
 
 ## Code style
 
