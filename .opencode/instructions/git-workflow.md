@@ -36,6 +36,11 @@ Meaning: **save local work and push the current branch** to the remote—**not**
 
    Use `-u origin HEAD` when the branch has no upstream yet; otherwise `git push`. If there is **nothing to commit**, run **`git push`** if there are unpushed commits.
 
+   > **SSH config workaround (Linux container, macOS host):** If `git push` fails with `Bad configuration option: usekeychain`, filter out the macOS-only `UseKeychain` lines:
+   > ```bash
+   > cp ~/.ssh/config /tmp/ssh_config && sed -i '/UseKeychain/d' /tmp/ssh_config && GIT_SSH_COMMAND="ssh -F /tmp/ssh_config" git push
+   > ```
+
 3. **Untracked files:** Use **`git add .`** (or add paths explicitly); do not rely on **`git commit -a`** alone if new files exist.
 
 Do not substitute stash/rebase flows for "sync git" unless the user asks for a pull-only or merge-from-remote step.
