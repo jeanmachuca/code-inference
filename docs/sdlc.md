@@ -94,16 +94,38 @@ docker compose --profile stack run --rm --no-deps api pytest -v
 - Import from `app.<module>` (the `pythonpath` setting resolves `src/services/api`).
 - Add new runtime deps to `src/services/api/requirements.txt`.
 
-## CI pipeline (`.github/workflows/ci.yml`)
+## CI pipeline
+
+### Trigger summary
+
+| Trigger | Workflow | What it does |
+|---------|----------|-------------|
+| Push to `feature/**`, `fix/**`, `bugfix/**` | `open-pr-to-development.yml` | Auto-opens a PR into `development` if none exists |
+| Push/PR to `development` or `main` | `ci.yml` | Runs lint + test checks |
+| PR targeting `main` | `main-pr-source.yml` | Rejects PRs whose head branch is not `development` |
+
+### `ci.yml`
 
 Triggers: push or PR to `main` or `development`.
 
-### Jobs
+#### Jobs
 
 1. **lint** — Installs `src/services/api/requirements.txt` + `dev-requirements.txt`. Runs ruff check, ruff format check, mypy.
 2. **test** — Installs only `src/services/api/requirements.txt`. Runs `pytest -v`.
 
 Both jobs run on `ubuntu-latest` with Python 3.12.
+
+### `open-pr-to-development.yml`
+
+Triggers: push to `feature/**`, `fix/**`, `bugfix/**`.
+
+Queries existing open PRs from that branch to `development` via the GitHub API. If none found, creates one using the first line of the push commit as the title. Requires **Read and write permissions** in repo Settings → Actions → General → Workflow permissions.
+
+### `main-pr-source.yml`
+
+Triggers: PR targeting `main`.
+
+Validates that `github.head_ref` is `development`. Exits with an error otherwise, blocking the PR merge. Intended to be configured as a required status check in branch protection rules for `main`.
 
 ## Docker image lifecycle
 
