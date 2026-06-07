@@ -1,25 +1,71 @@
 # OpenCode stack
 
-OpenCode AI CLI as a Docker Compose service. Runs from any directory by mounting the host's current directory as `/workspace`.
+OpenCode AI CLI as a Docker Compose service (`tools` profile). Runs from any directory by mounting the host's current directory as `/workspace`.
 
 ## Quick start
 
-```
+```bash
+# From this repo:
 ./launch-opencode.sh
+
+# From any directory with this compose file available:
+docker compose --profile tools run --rm opencode
+
+# Without the compose file (no persistent volumes):
+docker run -it --rm -v $(pwd):/workspace ghcr.io/anomalyco/opencode
 ```
 
-This calls `docker compose --profile tools run --rm --name "opencode-$(basename $PWD)" opencode`.
+## Dockerfile (`src/opencode-stack/Dockerfile`)
 
-## How it works
+| Step | Detail |
+|------|--------|
+| **Base** | `ghcr.io/anomalyco/opencode` — the published OpenCode CLI image. (Project moved from archived `opencode-ai/opencode` to `anomalyco/opencode`.) |
+| **Git** | `apk add --no-cache git` — needed for opencode's git-aware features |
+| **User** | Non-root `opencode` user (fixed uid/gid, no host mapping) |
+| **XDG dirs** | `~/.config/opencode`, `~/.local/share/opencode`, `~/.local/state/opencode`, `~/.cache/opencode` — created with `opencode` ownership so volumes mount correctly even when empty |
+| **Workdir** | `/workspace` — matches the compose mount target |
 
-| Mechanism | Detail |
-|-----------|--------|
-| **Workspace** | `${PWD}:/workspace` — mounts whatever directory you run from into the container |
-| **User** | Runs as non-root `opencode` user inside the container |
-| **State** | Persistent named volumes survive container `--rm` removal |
-| **Container name** | Set at runtime via `--name opencode-<dirname>`, allowing simultaneous instances |
+**Note on uid/gid:** The `opencode` user has a fixed uid inside the image. If your host files are owned by a different uid, the container can still read/write them on most Linux setups (bind mount shares the host uid), but files created by opencode inside the container will be owned by the container's `opencode` uid. For strict host uid alignment, some community setups map uid/gid via `--build-arg UID=$(id -u) --build-arg GID=$(id -g)`.
 
-## Persistent volumes
+## Compose service (`docker-compose.yml` opencode service)
+
+```yaml
+opencode:
+    container_name: opencode
+    profiles:
+      - tools
+    build:
+      context: .
+      dockerfile: src/opencode-stack/Dockerfile
+    stdin_open: true   # -i (interactive)
+    tty: true           # -t (pseudo-TTY)
+    user: opencode
+    environment:
+      - XDG_CONFIG_HOME=/home/opencode/.config
+      - XDG_DATA_HOME=/home/opencode/.local/share
+      - XDG_STATE_HOME=/home/opencode/.local/state
+      - XDG_CACHE_HOME=/home/opencode/.cache
+    networks:
+      - internal
+    volumes:
+      - ${PWD}:/workspace
+```
+
+| Setting | Purpose |
+|---------|---------|
+| `stdin_open: true` + `tty: true` | Interactive TTY — required for the CLI to receive input |
+| `user: opencode` | Matches the Dockerfile's non-root user |
+| `XDG_*_HOME` | Points opencode to the directories the Dockerfile created |
+| `network: internal` | Shares the bridge network with `inference` and `api` — opencode can reach `http://api:8000` |
+| `${PWD}:/workspace` | Mounts whatever directory you run `docker compose` from |
+
+**No persistent volumes are mounted by this service.** Each `run --rm` starts with fresh XDG directories (empty, correct ownership). Config, auth tokens, and cache are ephemeral.
+
+> For persistent volumes across sessions, use `launch-fresh-opencode.sh` (standalone `docker run` with named volumes).
+
+## Volumes
+
+Four named volumes are declared in `docker-compose.yml` but **not attached to any service**:
 
 | Volume | Container path | Stores |
 |--------|---------------|--------|
@@ -28,71 +74,105 @@ This calls `docker compose --profile tools run --rm --name "opencode-$(basename 
 | `opencode_state` | `/home/opencode/.local/state/opencode` | Session state |
 | `opencode_cache` | `/home/opencode/.cache/opencode` | Temporary caches |
 
-Volumes are named `{project}_opencode_*` where the project name defaults to the compose file's parent directory. They persist across restarts and are only removed with `docker compose down -v`.
+These exist as a convenience for the standalone `launch-fresh-opencode.sh` script but are dead declarations in the compose context — no compose service references them. To attach them, add `volumes:` entries to the opencode service.
 
-## Running from any directory
+## Launcher scripts
 
-Because the compose file uses `${PWD}` for the workspace mount, you can launch opencode on any project:
+| Script | Mechanism | Volumes | Persistence |
+|--------|-----------|---------|-------------|
+| `launch-opencode.sh` | `docker compose --profile tools run --rm` | None (ephemeral) | ❌ Nothing saved |
+| `launch-opencode.sh --full-isolation` | `docker compose -p <dirname> --profile tools run --rm` | Scoped per-project volumes | ❌ Still none mounted |
+| `launch-fresh-opencode.sh` | `docker run -it --rm -v $(pwd):/workspace` | Named volumes | ✅ Config, auth, cache persist |
 
-```bash
-# Work on project A
-cd ~/projects/app-a
-/path/to/code-inference-ai/launch-opencode.sh
+### launch-opencode.sh
 
-# In another terminal, work on project B
-cd ~/projects/app-b
-/path/to/code-inference-ai/launch-opencode.sh
+```sh
+docker compose $PROJECT_FLAG --profile tools run --rm --name "opencode-$NAME_SUFFIX" opencode
 ```
 
-Each instance gets a unique container name (`opencode-app-a`, `opencode-app-b`) so they run simultaneously without collision. Volumes are shared under the same compose project — `auth.json` is common across all instances.
+- No persistent volumes — each run is fresh.
+- `--name "opencode-<dirname>"` avoids container name collision across directories.
+- `--full-isolation` adds `-p <dirname>` scoping, which affects compose project name for volume/label scoping but has no practical effect since no volumes are mounted.
 
-## Running with full isolation (`--full-isolation`)
+### launch-fresh-opencode.sh
 
-Pass `--full-isolation` to give each workspace its own set of persistent volumes:
-
-```bash
-cd ~/projects/app-a
-/path/to/code-inference-ai/launch-opencode.sh --full-isolation
-
-cd ~/projects/app-b
-/path/to/code-inference-ai/launch-opencode.sh --full-isolation
+```sh
+docker run -it --rm -v $(pwd):/workspace \
+  -v opencode_config:/home/opencode/.config/opencode \
+  -v opencode_data:/home/opencode/.local/share/opencode \
+  -v opencode_state:/home/opencode/.local/state/opencode \
+  -v opencode_cache:/home/opencode/.cache/opencode \
+  ghcr.io/anomalyco/opencode
 ```
 
-This adds `-p <dirname>` to the compose command, scoping all volumes to that project. Each workspace gets dedicated config, auth, cache, and state — nothing leaks between projects.
+- Uses `docker run` directly (not compose). Works from any directory without the compose file.
+- Mounts the four named volumes for persistent config, auth, cache, and state.
+- **Name "fresh" is misleading** — with volumes, state persists across runs.
 
-**Tradeoff:** You must authenticate provider tokens separately in each isolated workspace (`opencode auth login`).
+## Permission hardening
 
-## Volume scope comparison
+OpenCode's default permission model **allows all operations** without approval. Community and official guidance recommends restricting this:
 
-| | Without `--full-isolation` | With `--full-isolation` |
-|---|---|---|
-| Container name | `opencode-<dirname>` | `opencode-<dirname>` |
-| Volume prefix | `code-inference-ai_*` (repo name) | `<dirname>_*` (workspace name) |
-| Auth tokens | Shared | Per-workspace |
-| Config | Shared | Per-workspace |
-| Cache | Shared | Per-workspace |
-
-## Manual invocation (without the script)
-
-```bash
-# Default (shared volumes)
-docker compose --profile tools run --rm --name "opencode-$(basename $PWD)" opencode
-
-# Full isolation
-docker compose -p "$(basename $PWD)" --profile tools run --rm --name "opencode-$(basename $PWD)" opencode
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "edit": "ask",
+    "bash": "ask"
+  }
+}
 ```
 
-## Running on a different project without this compose file
+Add these to `opencode.json` (global at `~/.config/opencode/opencode.json` or per-project `opencode.json`) to require confirmation before file edits and shell commands. See [official permissions docs](https://opencode.ai/docs/permissions).
 
-If the project doesn't have `code-inference-ai`'s compose file available, fall back to raw Docker:
+## Config precedence
 
-```bash
-docker run -it --rm -v $(pwd):/workspace ghcr.io/anomalyco/opencode
+OpenCode loads config in this order (later overrides earlier):
+
+1. **Remote** (`.well-known/opencode` — organizational defaults)
+2. **Global** (`~/.config/opencode/opencode.json`)
+3. **Custom** (`OPENCODE_CONFIG` env var)
+4. **Project** (`opencode.json` in workspace root)
+5. **`.opencode` directories** — agents, commands, plugins
+6. **Inline** (`OPENCODE_CONFIG_CONTENT` env var)
+7. **Managed** (system path, MDM — highest priority, not user-overridable)
+
+When running from this repo, opencode picks up `/workspace/opencode.json` (project config), which overrides global defaults. If you need shared auth tokens and custom agents across projects, place them in `~/.config/opencode/opencode.json` or use the compose volume mounts.
+
+See the [official config docs](https://opencode.ai/docs/config) for the full schema.
+
+## Git operations
+
+Git is installed intentionally so opencode can autonomously commit, push, branch, and perform other git operations during a session. The bind mount `${PWD}:/workspace` shares the host's `.git` directory with the container.
+
+**Authentication depends on the remote protocol:**
+- **HTTPS remotes** — usually work out of the box (git uses `credential.helper` or prompts interactively).
+- **SSH remotes** — require the host SSH agent to be forwarded into the container.
+- **GitHub Copilot / OpenCode auth** — opencode can authenticate via its own provider tokens (`opencode auth login`), independent of git credentials.
+
+If you use SSH-based git remotes, add to the compose service:
+```yaml
+volumes:
+  - $SSH_AUTH_SOCK:/ssh-agent
+environment:
+  - SSH_AUTH_SOCK=/ssh-agent
 ```
 
-(Without persistent volumes — state is lost on exit.)
+## Network
+
+The `internal` bridge network gives the opencode container access to `http://api:8000` and `http://inference:8080`. This is how opencode reaches the local inference stack when configured with `baseURL: http://api:8000/v1` in `opencode.json`.
+
+## `opencode.json`
+
+This repo's `opencode.json` (gitignored; see `opencode.json.example` for the template) configures:
+- **Provider:** `code-inference` via `@ai-sdk/openai-compatible`, pointing to `http://api:8000/v1`
+- **Model:** `qwen2.5-coder-3b-instruct-q4_k_m.gguf` with tool call support, 64K context, 32K output
+- **Instructions:** `AGENTS.md` + `.opencode/instructions/git-workflow.md`
+
+When running opencode from this repo, these settings are auto-loaded. From another directory, create your own `opencode.json`.
 
 ## Troubleshooting
 
-- **"container name already exists"** — Another opencode instance is still running. Either exit it, or instances are in different directories and `--name` collision occurred. Use `--full-isolation` or remove stale containers with `docker rm opencode-<name>`.
-- **Permission denied writing to workspace** — The bind-mounted `${PWD}` directory is owned by the host user, but the container runs as `opencode`. OpenCode can read/write files in `/workspace` as the `opencode` user. If your host directory has restrictive permissions, chmod it or run with `user: root`.
+- **"container name already exists"** — Another opencode instance is still running. Exit it or remove with `docker rm opencode-<name>`. With `--full-isolation`, container names are unique per directory.
+- **Permission denied writing to workspace** — The bind-mounted `${PWD}` may be owned by a different host user. The container runs as `opencode` (uid 1000 typically). If your host files are owned by another user, opencode can still read/write them on most setups, but restrictive permissions may require `chmod` on the host directory.
+- **No auth provider configured** — First-time run needs `opencode auth login` unless the stack is already running and `opencode.json` is present.
