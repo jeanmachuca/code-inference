@@ -9,16 +9,19 @@
       },
       "models": {
         "qwen2.5-coder-3b-instruct-q4_k_m.gguf": {
+          "supportsToolCalls": true,
           "name": "Qwen 2.5 Coder 3B",
           "limit": {
-            "context":65536,
-            "output":32768
+            "context": 65536,
+            "output": 32768
           }
-
-          
         }
       }
     }
   },
-  "model": "code-inference/qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+  "model": "code-inference/qwen2.5-coder-3b-instruct-q4_k_m.gguf",
+  "instructions": [
+    "AGENTS.md",
+    ".opencode/instructions/git-workflow.md"
+  ]
 }

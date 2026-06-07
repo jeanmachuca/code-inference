@@ -1,0 +1,4 @@
+# Dev tools (not used in production Docker image)
+pre-commit==4.1.0
+ruff==0.9.6
+mypy==1.15.0

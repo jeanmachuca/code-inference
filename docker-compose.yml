@@ -6,27 +6,45 @@
 #   tools  — llama-stack (Meta llama-model CLI): docker compose --profile tools run --rm …
 
 services:
+  inference-vllm:
+    container_name: inference-vllm
+    profiles:
+      - alternate-inference
+    build:
+      context: .
+      dockerfile: src/inference-vllm/Dockerfile
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1 # Change to 1 if you only want to allocate a single GPU
+              capabilities: [gpu]
+
+
   inference:
     container_name: llama-inference
     profiles:
       - stack
-    image: ghcr.io/ggml-org/llama.cpp:server
+      - inference
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538
     restart: unless-stopped
     volumes:
       - model_data:/models:ro
     command:
       - "-m"
       - "/models/${MODEL_FILENAME:-model.gguf}"
-      - "--jinja"
       - "--host"
       - "0.0.0.0"
       - "--port"
       - "8080"
       - "--ctx-size"
-      - "16384"
+      - "${CONTEXT_SIZE:-16384}"
       - "--threads"
-      - "6"
+      - "${THREADS:-6}"
       - "--jinja"
+      - "--tools"
+      - "${TOOLS:-all}"
     ports:
       - "8080:8080"
     networks:
