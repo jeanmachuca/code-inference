@@ -1,19 +1,26 @@
 {
-    "$schema": "https://opencode.ai/config.json",
-    "provider": {
-      "code-inference": {
-        "npm": "@ai-sdk/openai-compatible",
-        "name": "Local Code Inference Server",
-        "options": {
-          "baseURL": "http://api:8000/v1"
-        },
-        "models": {
-          "model.gguf": {
-            "name": "Meta Llama 3 1B Instruct",
-            "contextWindow": 4096
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "code-inference": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Local Code Inference Server",
+      "options": {
+        "baseURL": "http://api:8000/v1"
+      },
+      "models": {
+        "model.gguf": {
+          "name": "Local Model",
+          "supportsToolCalls": true,
+          "limit": {
+            "context": 16384,
+            "output": 8192
           }
         }
       }
-    },
-    "model": "code-inference/model.gguf"
-  }
+    }
+  },
+  "model": "code-inference/model.gguf",
+  "instructions": [
+    "AGENTS.md"
+  ]
+}

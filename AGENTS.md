@@ -1,63 +1,72 @@
 # code-inference-ai
 
-Local/on-premise inference stack. FastAPI gateway proxies to llama.cpp; all inference stays on-host. PII masking (Chilean RUT), char-level truncation, intent tagging.
+Local inference stack. FastAPI gateway proxies to llama.cpp; all inference stays on-host. PII masking (Chilean RUT), char-level truncation, intent tagging.
 
-## Commands
+Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode.json` instruction).
+
+## Docker commands
 
 | Action | Command |
 |--------|---------|
-| Build all images | `make build` |
-| Run full stack | `make up` |
-| Run unit tests | `make test` |
+| Build stack + tools images | `make build` |
+| Run stack (always rebuilds) | `make up` |
+| Unit tests (no inference needed) | `make test` |
 | Single test | `docker compose --profile stack run --rm --no-deps api pytest -v tests/api/test_prompt.py::TEST_NAME` |
 | Shell into API container | `docker compose --profile stack run --rm api sh` |
-| Restart stack (destroys volumes) | `./restart.sh` |
+| Full restart (destroys `training_data` volume) | `./restart.sh` |
+
+## Host commands (for CI / pre-commit)
+
+| Action | Command |
+|--------|---------|
 | Ruff lint | `ruff check .` |
 | Ruff format check | `ruff format --check .` |
 | mypy | `mypy src/` |
-| Launch opencode | `./launch-opencode.sh` |
+| Pre-commit (all hooks) | `pre-commit run --all-files` |
 
 ## Architecture
 
-- **Entrypoint:** `src/services/api/app/main.py` — FastAPI app. `GET /health`, `GET /health/ready` (pings inference `/v1/models`), `POST /v1/chat/completions` (proxies to inference after prompt processing).
-- **Prompt layer:** `src/services/api/app/prompt.py` — RUT masking via regex, char-level truncation (last user message only), intent tagging from `X-code_inference-Intent` header.
-- **Config:** `src/services/api/app/config.py` — pydantic-settings reads `.env` at module level.
-- **Compose profiles:** `stack` (inference+api, default), `tools` (opencode CLI), `alternate-inference` (vLLM). Build context is project root.
+- **Entrypoint:** `src/services/api/app/main.py:22` — FastAPI app. Routes: `GET /health`, `GET /health/ready` (pings inference `/v1/models`), `POST /v1/chat/completions` (proxies after prompt processing).
+- **Prompt layer:** `src/services/api/app/prompt.py` — RUT masking via regex `_RUT_RE`, char-level truncation (last user message only, appends `…[truncated]`), intent tagging from `X-code_inference-Intent` header.
+- **Config:** `src/services/api/app/config.py` — pydantic-settings reads `.env` at module level (singleton).
+- **Compose profiles:** `stack` (inference+api, default), `tools` (opencode CLI), `alternate-inference` (vLLM — experimental, not wired). Build context is project root.
 - **Volumes:** `model_data` (bind-mount `./models/:ro`), `training_data` (named, **destroyed by `restart.sh`**).
-- **`src/inference-vllm/`, `src/llama-stack/`, `src/ollama-stack/`, `src/opencode-stack/`** are standalone Docker builds, not in default stack.
+- **Stack Dockerfiles:** `src/services/api/Dockerfile` (python:3.12-alpine, uvicorn), `src/inference-vllm/`, `src/llama-stack/`, `src/ollama-stack/`, `src/opencode-stack/` (standalone builds outside default stack).
+- **Inference container** starts with `--jinja --tools all --ctx-size ${CONTEXT_SIZE:-16384}`.
 
 ## Code style
 
-- Ruff: line-length 100, target py312, lint select `E,F,I,N,W,UP,SIM`, **single quotes**.
-- mypy: `--no-strict-optional --ignore-missing-imports`, extra deps in `.pre-commit-config.yaml` (pydantic, httpx, fastapi, slowapi, pydantic-settings).
+- Ruff: line-length 100, target py312, lint `E,F,I,N,W,UP,SIM`, **single quotes**.
+- mypy: `--no-strict-optional --ignore-missing-imports`.
 - No raw prompts logged — only `request_id`, `tags`, `truncated`, `pii_masked` flags.
 - Response headers: `X-Request-Id`, `X-Prompt-Truncated`, `X-Prompt-Pii-Masked`.
 
 ## Setup
 
-1. `cp .env.example .env`, adjust vars (`MODEL_FILENAME`, `CONTEXT_SIZE`, `INFERENCE_URL`, `RATE_LIMIT_PER_MINUTE`, `MAX_PROMPT_CHARS`).
-2. Place a GGUF model in `./models/`.
+1. `cp .env.example .env`, adjust vars (see `docs/settings.md` for full reference).
+2. Place a GGUF model in `./models/` (see `docs/models/README.md`).
 3. `make build && make up`.
 
 ## Testing quirks
 
-- **Unit tests only** (no inference container needed). Single file: `tests/api/test_prompt.py` (3 tests).
+- **Unit tests only** (no inference container). Single file: `tests/api/test_prompt.py` (3 tests).
 - **`pytest` is a runtime dep** in `src/services/api/requirements.txt` — intentional for in-container `make test`.
 - **Dual pytest configs:** root `pyproject.toml`/`pytest.ini` set `pythonpath=src/services/api` (CI/host). Container `src/services/api/pytest.ini` sets `pythonpath=.` (workdir `/app`). New tests go in `tests/api/`.
 
 ## CI (`.github/workflows/ci.yml`)
 
 - Triggers: push/PR to `main` or `development`.
-- **lint job:** installs runtime + dev deps, runs `ruff check`, `ruff format --check .`, `mypy src/`.
-- **test job:** installs only runtime deps, runs `pytest -v`.
+- **lint job:** runtime + dev deps, runs `ruff check`, `ruff format --check .`, `mypy src/`.
+- **test job:** runtime deps only, runs `pytest -v`.
 
 ## Gotchas
 
-- **`opencode.json` is gitignored** — `opencode.json.example` is the committed template.
+- **`opencode.json` is gitignored** — `opencode.json.example` is the committed template. Actual config loads `AGENTS.md` + `.opencode/instructions/git-workflow.md`.
 - **`.dockerignore` excludes `docs/`** — cannot COPY docs into any image.
-- **`restart.sh`** runs `docker compose --profile stack down -v` — destroys named `training_data` volume (bind-mount `model_data` survives).
+- **`restart.sh`** runs `docker compose --profile stack down -v` then `up --force-recreate --build --remove-orphans -d` — destroys named `training_data` volume (bind-mount `model_data` survives).
 - **`make build`** builds both `stack` and `tools` profiles (pulls `ghcr.io/anomalyco/opencode`).
-- **`CONTEXT_SIZE` env:** `.env.example` defaults to 1024, but `docker-compose.yml` default is 16384 (actual `.env` uses 16384).
-- **Default branch:** `development`. Gitflow + SemVer. No rebase. Keep merged topic branches. Active git rules: `.opencode/instructions/git-workflow.md`.
+- **`make up`** always runs `--build` (picks up local code changes).
+- **`CONTEXT_SIZE`:** `.env.example` defaults to 1024; `docker-compose.yml` shell default (`${CONTEXT_SIZE:-16384}`) is 16384. If using `.env.example` directly, the compose override takes effect — verify your actual value.
+- **Default branch:** `development`. Gitflow + SemVer. No rebase. Keep merged topic branches.
 - **`models/*` and `*.gguf` gitignored** — do not commit weights.
-- **Full project config reference:** `docs/settings.md` documents every file, env var, and workflow in detail.
+- **README / docs cross-references that do not exist on disk:** `docs/architecture.md`, `docs/rate-limits.md`, `docs/git-workflow.md`.**

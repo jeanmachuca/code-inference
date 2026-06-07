@@ -1,6 +1,23 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
+    "opencode": {
+      "name": "OpenCode Zen",
+      "models": {
+        "big-pickle": {
+          "name": "Big Pickle"
+        },
+        "deepseek-v4-flash-free": {
+          "name": "DeepSeek V4 Flash Free"
+        },
+        "mimo-v2.5-free": {
+          "name": "MiMo-V2.5 Free"
+        },
+        "nemotron-3-ultra-free": {
+          "name": "Nemotron 3 Ultra Free"
+        }
+      }
+    },
     "code-inference": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Llama.cpp Local Server",
@@ -12,14 +29,14 @@
           "supportsToolCalls": true,
           "name": "Qwen 2.5 Coder 3B",
           "limit": {
-            "context": 65536,
+            "context": 16384,
             "output": 32768
           }
         }
       }
     }
   },
-  "model": "code-inference/qwen2.5-coder-3b-instruct-q4_k_m.gguf",
+  "model": "opencode/big-pickle",
   "instructions": [
     "AGENTS.md",
     ".opencode/instructions/git-workflow.md"

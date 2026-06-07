@@ -163,12 +163,14 @@ NOTABLE: `opencode.json` is gitignored (local OpenCode config). `models/*` and `
 
 | Service | Container name | Profiles | Build/Image |
 |---------|---------------|----------|-------------|
-| `inference-vllm` | `inference-vllm` | `alternate-inference` | Builds `src/inference-vllm/Dockerfile` |
-| `inference` | `llama-inference` | `stack`, `inference` | `ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538` |
-| `api` | `llama-api` | `stack` | Builds `src/services/api/Dockerfile` |
-| `opencode` | `opencode` | `tools` | Builds `src/opencode-stack/Dockerfile` — mounts `${PWD}:/workspace` |
+| `inference-vllm` | `inference-vllm` | `alternate-inference` | `src/inference-vllm/Dockerfile` — **incomplete, do not use** |
+| `inference` | `llama-inference` | `stack`, `inference` | `ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538` — **only production-ready backend** |
+| `api` | `llama-api` | `stack` | `src/services/api/Dockerfile` |
+| `opencode` | `opencode` | `tools` | `src/opencode-stack/Dockerfile` — mounts `${PWD}:/workspace` |
 
-**Networks:** `internal` (bridge) — shared between `inference` and `api`.
+**Networks:** `internal` (bridge) — shared by `inference`, `api`, and `opencode`. `inference-vllm` is NOT on this network (incomplete — cannot communicate with the API).
+
+**Inference backends:** Only `inference` (llama.cpp) is production-ready. The `alternate-inference` profile exists as a placeholder for future backend swaps (vllm, ollama, etc.) but is not wired to the API — `INFERENCE_URL` always points to `http://inference:8080`. The `src/inference-vllm/`, `src/llama-stack/`, and `src/ollama-stack/` Dockerfiles are experimental stubs.
 
 **Volumes:**
 | Volume | Driver | Source | Mount |
@@ -195,6 +197,62 @@ NOTE: The default `CONTEXT_SIZE` in `docker-compose.yml` is `16384` (different f
 | `INFERENCE_URL` | `http://inference:8080` |
 | `RATE_LIMIT_PER_MINUTE` | `30` |
 | `MAX_PROMPT_CHARS` | `8000` |
+
+### Request flow (stack profile)
+
+Every chat completion follows a three-hop chain through the `internal` network:
+
+```
+opencode                  llama-api                  llama-inference
+  │                          │                           │
+  │ POST /v1/chat/completions│                           │
+  │ baseURL: http://api:8000 │                           │
+  │─────────────────────────►│                           │
+  │                          │                           │
+  │                  1. Parse request, validate           │
+  │                  2. process_messages() —              │
+  │                     RUT mask, truncate, tag          │
+  │                  3. Build forward dict                │
+  │                          │                           │
+  │                          │  POST /v1/chat/completions │
+  │                          │  inference_url:            │
+  │                          │  http://inference:8080     │
+  │                          │──────────────────────────►│
+  │                          │                           │
+  │                          │                  1. Load GGUF from
+  │                          │                     /models/${MODEL_FILENAME}
+  │                          │                  2. Run inference
+  │                          │                     (--ctx-size, --threads)
+  │                          │                  3. Return OpenAI-compatible response
+  │                          │                           │
+  │                          │◄──────────────────────────│
+  │                          │                           │
+  │                  4. Apply rate limit (slowapi)
+  │                  5. Log metadata (no prompts)
+  │                  6. Add X-Request-Id,
+  │                     X-Prompt-Truncated,
+  │                     X-Prompt-Pii-Masked headers
+  │◄─────────────────────────┤                           │
+```
+
+**Key details per hop:**
+
+| Hop | From | To | URL | Port |
+|-----|------|----|-----|------|
+| 1 | opencode | llama-api | `http://api:8000/v1/chat/completions` | 8000 |
+| 2 | llama-api | llama-inference | `http://inference:8080/v1/chat/completions` | 8080 |
+| 3 | llama-inference | model file | `/models/${MODEL_FILENAME:-model.gguf}` | — |
+
+**What the API adds** (hop 2 intercepts and enriches):
+- Chilean RUT masking via regex
+- Char-level truncation on last user message
+- Intent tagging from `X-code_inference-Intent` header
+- Rate limiting (`RATE_LIMIT_PER_MINUTE`)
+- Request ID and metadata headers on the response
+- Parameter passthrough: `max_tokens`, `temperature`, `top_p`, `frequency_penalty`, `presence_penalty`, `seed`, `stop`, plus any extras (`tools`, `tool_choice`, etc.)
+- Streaming passthrough (SSE) when `stream: true`
+- Retry with backoff on connect/timeout errors (3 attempts)
+- Startup wait: polls inference `/v1/models` for up to 60s before accepting requests
 
 ---
 
@@ -257,9 +315,13 @@ Unpinned base image (`ubuntu`). Installs via shell pipe — security note for pr
 | Setting | Value |
 |---------|-------|
 | Base | `ghcr.io/anomalyco/opencode` |
+| Adds | `git` (apk) |
+| User | `opencode` (non-root, created with home) |
 | Workdir | `/workspace` |
 
-Minimal — just re-tags the published opencode image and sets WORKDIR to `/workspace`. The compose service mounts `${PWD}:/workspace` so the container always sees the host directory you run from. Uses `stdin_open: true` and `tty: true` for interactive sessions.
+Also creates XDG base directories (`~/.config/opencode`, `~/.local/share/opencode`, `~/.local/state/opencode`, `~/.cache/opencode`) with `opencode` ownership so volumes mount correctly when empty.
+
+The compose service mounts `${PWD}:/workspace` and uses `stdin_open: true` + `tty: true` for interactive sessions. See `docs/opencode-stack.md` for full details.
 
 Usage:
 ```
@@ -268,6 +330,9 @@ Usage:
 
 # From any directory with this compose file available:
 docker compose --profile tools run --rm opencode
+
+# Without compose file (no persistent volumes):
+docker run -it --rm -v $(pwd):/workspace ghcr.io/anomalyco/opencode
 ```
 
 ---
