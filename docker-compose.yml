@@ -86,10 +86,12 @@ services:
       - XDG_DATA_HOME=/home/opencode/.local/share
       - XDG_STATE_HOME=/home/opencode/.local/state
       - XDG_CACHE_HOME=/home/opencode/.cache
+      - GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new
     networks:
       - internal
     volumes:
       - ${PWD}:/workspace
+      - ~/.ssh:/home/opencode/.ssh:ro
 
 volumes:
   model_data:
