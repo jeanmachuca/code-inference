@@ -99,8 +99,13 @@ async def chat_completions(
         'messages': pr.messages,
     }
     for field in (
-        'max_tokens', 'temperature', 'top_p',
-        'frequency_penalty', 'presence_penalty', 'seed', 'stop',
+        'max_tokens',
+        'temperature',
+        'top_p',
+        'frequency_penalty',
+        'presence_penalty',
+        'seed',
+        'stop',
     ):
         val = getattr(body, field, None)
         if val is not None:
@@ -165,7 +170,9 @@ async def _stream_chat(forward: dict[str, Any], url: str):
 
 
 async def _inference_request(
-    forward: dict[str, Any], url: str, timeout: float = 300.0,
+    forward: dict[str, Any],
+    url: str,
+    timeout: float = 300.0,
 ) -> httpx.Response:
     last_exc: Exception | None = None
     for attempt in range(3):
@@ -175,5 +182,5 @@ async def _inference_request(
         except (httpx.ConnectError, httpx.TimeoutException) as e:
             last_exc = e
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
     raise last_exc  # type: ignore[arg-type]
