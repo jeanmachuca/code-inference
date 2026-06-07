@@ -5,7 +5,7 @@
         "npm": "@ai-sdk/openai-compatible",
         "name": "Local Code Inference Server",
         "options": {
-          "baseURL": "http://localhost:8080/v1"
+          "baseURL": "http://api:8000/v1"
         },
         "models": {
           "model.gguf": {

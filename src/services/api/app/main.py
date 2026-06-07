@@ -25,7 +25,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: str | None = None
 
 
 class ChatCompletionRequest(BaseModel):
