@@ -98,7 +98,10 @@ async def chat_completions(
         'model': body.model,
         'messages': pr.messages,
     }
-    for field in ('max_tokens', 'temperature', 'top_p', 'frequency_penalty', 'presence_penalty', 'seed', 'stop'):
+    for field in (
+        'max_tokens', 'temperature', 'top_p',
+        'frequency_penalty', 'presence_penalty', 'seed', 'stop',
+    ):
         val = getattr(body, field, None)
         if val is not None:
             forward[field] = val
@@ -153,13 +156,17 @@ async def chat_completions(
 
 
 async def _stream_chat(forward: dict[str, Any], url: str):
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        async with client.stream('POST', url, json=forward) as resp:
-            async for chunk in resp.aiter_bytes():
-                yield chunk
+    async with (
+        httpx.AsyncClient(timeout=300.0) as client,
+        client.stream('POST', url, json=forward) as resp,
+    ):
+        async for chunk in resp.aiter_bytes():
+            yield chunk
 
 
-async def _inference_request(forward: dict[str, Any], url: str, timeout: float = 300.0) -> httpx.Response:
+async def _inference_request(
+    forward: dict[str, Any], url: str, timeout: float = 300.0,
+) -> httpx.Response:
     last_exc: Exception | None = None
     for attempt in range(3):
         try:
