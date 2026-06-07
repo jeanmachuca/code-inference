@@ -158,6 +158,8 @@ environment:
   - SSH_AUTH_SOCK=/ssh-agent
 ```
 
+> **macOS → Linux SSH config caveat:** macOS `~/.ssh/config` often contains `UseKeychain yes` (macOS-only). On Linux, this is an invalid option and causes SSH to abort. If git operations fail in the container with `Bad configuration option: usekeychain`, either remove those lines from your SSH config (they're macOS-only) or copy a filtered config before pushing, e.g. `cp ~/.ssh/config /tmp/ssh_config && sed -i '/UseKeychain/d' /tmp/ssh_config && GIT_SSH_COMMAND="ssh -F /tmp/ssh_config" git push`. The fix is local to the container; your host config is unaffected.
+
 ## Network
 
 The `internal` bridge network gives the opencode container access to `http://api:8000` and `http://inference:8080`. This is how opencode reaches the local inference stack when configured with `baseURL: http://api:8000/v1` in `opencode.json`.
