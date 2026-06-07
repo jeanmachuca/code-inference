@@ -4,7 +4,7 @@ set -e
 case "${1:-}" in
   --fresh|--full-isolation)
     shift
-    exec /repo/launch-fresh-opencode.sh "$@"
+    exec /workspace/launch-fresh-opencode.sh "$@"
     ;;
   --help|-h)
     echo "Usage: docker run [OPTIONS] code-inference [--fresh] [-- opencode-args]"
@@ -16,6 +16,6 @@ case "${1:-}" in
     echo "         -v \"\$(pwd):\$(pwd)\" -w \"\$(pwd)\""
     ;;
   *)
-    exec /repo/launch-opencode.sh "$@"
+    exec /workspace/launch-opencode.sh "$@"
     ;;
 esac
