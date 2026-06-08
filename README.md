@@ -5,7 +5,11 @@ OpenCode AI CLI launcher — runs opencode in your project with a preconfigured 
 ## Quick install
 
 ```bash
-curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/main/install.sh | sh
+# Latest (pre-release)
+curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/development/install.sh | sh
+
+# Stable release (once on main):
+# curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/main/install.sh | sh
 ```
 
 ## Usage

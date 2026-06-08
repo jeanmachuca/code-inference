@@ -11,10 +11,19 @@ Verify:
 docker info >/dev/null && docker compose version
 ```
 
+## Choose your branch
+
+| Branch | Use case | Command |
+|--------|----------|---------|
+| `main` | Stable release | `main` in URL |
+| `development` | Latest (pre-release) | `development` in URL |
+
+The examples below use `development`. Replace with `main` for the stable release.
+
 ## Quick install (Linux / macOS)
 
 ```bash
-curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/main/install.sh | sh
+curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/development/install.sh | sh
 ```
 
 This clones the repo to `~/.code-inference/` and places a `code-inference` wrapper in `/usr/local/bin/`.
@@ -41,7 +50,7 @@ code-inference --help
 Install to `~/bin` (no sudo):
 
 ```bash
-BIN_DIR="$HOME/bin" curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/main/install.sh | sh
+BIN_DIR="$HOME/bin" curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/development/install.sh | sh
 ```
 
 Make sure `~/bin` is on your `PATH` (add to `~/.zshrc`):
@@ -61,7 +70,7 @@ export PATH="$HOME/bin:$PATH"
 Install without sudo to `~/.local/bin`:
 
 ```bash
-BIN_DIR="$HOME/.local/bin" curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/main/install.sh | sh
+BIN_DIR="$HOME/.local/bin" curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/development/install.sh | sh
 ```
 
 ### Windows
@@ -71,7 +80,7 @@ Use **Git Bash** or **WSL2**.
 #### Git Bash
 
 ```bash
-BIN_DIR="$HOME/bin" curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/main/install.sh | sh
+BIN_DIR="$HOME/bin" curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/development/install.sh | sh
 ```
 
 Add `~/bin` to your `PATH` in `~/.bashrc`:
