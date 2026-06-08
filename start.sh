@@ -35,29 +35,29 @@ case "${1:-}" in
         n|N|no|No) echo "Skipping." ;;
         *)
           if [ ! -f "./opencode.json" ]; then
-            cp "$SCRIPT_DIR/opencode.json.example" "./opencode.json"
+            cp "$SCRIPT_DIR/templates/default/opencode.json" "./opencode.json"
             echo "Created $(pwd)/opencode.json"
           fi
           if [ ! -f "./AGENTS.md" ]; then
-            cp "$SCRIPT_DIR/AGENTS.md.example" "./AGENTS.md"
+            cp "$SCRIPT_DIR/templates/default/AGENTS.md" "./AGENTS.md"
             echo "Created $(pwd)/AGENTS.md"
           fi
           if [ ! -f "./.opencode/instructions/git-workflow.md" ]; then
             mkdir -p "./.opencode/instructions"
-            cp "$SCRIPT_DIR/.opencode/instructions/git-workflow.md.example" "./.opencode/instructions/git-workflow.md"
+            cp "$SCRIPT_DIR/templates/default/.opencode/instructions/git-workflow.md" "./.opencode/instructions/git-workflow.md"
             echo "Created $(pwd)/.opencode/instructions/git-workflow.md"
           fi
           if [ ! -f "./.pre-commit-config.yaml" ]; then
-            cp "$SCRIPT_DIR/.pre-commit-config.yaml.example" "./.pre-commit-config.yaml"
+            cp "$SCRIPT_DIR/templates/default/.pre-commit-config.yaml" "./.pre-commit-config.yaml"
             echo "Created $(pwd)/.pre-commit-config.yaml"
           fi
           if [ ! -f "./dev-requirements.txt" ]; then
-            cp "$SCRIPT_DIR/dev-requirements.txt.example" "./dev-requirements.txt"
+            cp "$SCRIPT_DIR/templates/default/dev-requirements.txt" "./dev-requirements.txt"
             echo "Created $(pwd)/dev-requirements.txt"
           fi
           if [ ! -f "./.github/workflows/ci.yml" ]; then
             mkdir -p "./.github/workflows"
-            for f in "$SCRIPT_DIR"/.github/workflows.example/*.yml; do
+            for f in "$SCRIPT_DIR"/templates/default/.github/workflows/*.yml; do
               [ -f "$f" ] || continue
               cp "$f" "./.github/workflows/$(basename "$f")"
               echo "Created $(pwd)/.github/workflows/$(basename "$f")"
