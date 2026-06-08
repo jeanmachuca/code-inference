@@ -51,7 +51,7 @@ Do not substitute stash/rebase flows for "sync git" unless the user asks for a p
 
 ## Opening a PR
 
-Use **`.github/workflows/open-pr-to-development.yml`** (push to **`feature/**`**, **`fix/**`**, **`bugfix/**`**), the GitHub UI, or **`gh pr create`**. **Do not** add repo **`*.sh`** helpers for git—root shell scripts are for **Widellama / Compose** ([docs/widellama/helper-scripts.md](docs/widellama/helper-scripts.md)).
+Use **`.github/workflows/open-pr-to-development.yml`** (push to **`feature/**`**, **`fix/**`**, **`bugfix/**`**), the GitHub UI, or **`gh pr create`**. Provide a clear title and description of the changes.
 
 ## Releases and tags
 
