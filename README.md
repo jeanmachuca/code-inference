@@ -17,9 +17,10 @@ curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/developmen
 From any project directory:
 
 ```bash
-code-inference          # launch opencode with the inference stack
-code-inference --fresh  # standalone opencode (no inference backend)
-code-inference --help   # show usage
+code-inference               # launch opencode with the inference stack
+code-inference --fresh       # standalone opencode (no inference, persistent volumes)
+code-inference --full-isolation  # compose with scoped project name (inference, ephemeral)
+code-inference --help        # show usage
 ```
 
 ## How it works
