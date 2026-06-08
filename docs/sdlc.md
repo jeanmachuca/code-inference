@@ -11,7 +11,13 @@ Local/on-premise code inference stack. Development is Docker-native — the only
 - **Topic branches:** Branch from `development`: `feature/<topic>`, `fix/<topic>`, `bugfix/<topic>`.
 - **No rebase.** Use `git pull` (merge) to sync.
 - **Keep merged branches.** Do not delete topic branches after merge.
-- **Tags:** Annotated SemVer. `vMAJOR.MINOR.PATCH` on `main` at release. `vMAJOR.MINOR.PATCH-dev.N` on `development` after feature merge.
+- **Versioning:** [Semantic Versioning 2.0.0](https://semver.org).
+  - **PATCH** (`v1.0.0` → `v1.0.1`): Bug fixes, refactors, docs, CI, non-functional changes.
+  - **MINOR** (`v1.0.0` → `v1.1.0`): New features, additions, backwards-compatible enhancements.
+  - **MAJOR** (`v1.0.0` → `v2.0.0`): Breaking changes — API, config format, interface, behaviour.
+- **Tags:** Annotated SemVer.
+  - Release: `vMAJOR.MINOR.PATCH` on `main`.
+  - Integration: `vMAJOR.MINOR.PATCH-dev.N` on `development` after feature merge.
 - **Normative reference:** `docs/git-workflow.md` (when written). Local agent instructions in `.opencode/instructions/git-workflow.md`.
 
 ## Local development
