@@ -1,21 +1,20 @@
 #!/bin/sh
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 case "${1:-}" in
   --fresh|--full-isolation)
     shift
-    exec /workspace/launch-fresh-opencode.sh "$@"
+    exec "$SCRIPT_DIR/launch-fresh-opencode.sh" "$@"
     ;;
   --help|-h)
-    echo "Usage: docker run [OPTIONS] code-inference [--fresh] [-- opencode-args]"
+    echo "Usage: code-inference [--fresh] [-- opencode-args]"
     echo ""
     echo "Options:"
-    echo "  --fresh, --full-isolation  Run with fresh/isolated state per project"
-    echo ""
-    echo "Requires: -v /var/run/docker.sock:/var/run/docker.sock"
-    echo "         -v \"\$(pwd):\$(pwd)\" -w \"\$(pwd)\""
+    echo "  --fresh, --full-isolation  Run opencode standalone without the inference stack"
     ;;
   *)
-    exec /workspace/launch-opencode.sh "$@"
+    exec "$SCRIPT_DIR/launch-opencode.sh" "$@"
     ;;
 esac

@@ -2,44 +2,48 @@
 
 OpenCode AI CLI launcher — runs opencode in your project with a preconfigured local inference stack.
 
-## Quick start
+## Quick install
 
 ```bash
-docker pull ghcr.io/jeanmachuca/code-inference
+curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/main/install.sh | sh
+```
 
-# Run opencode in your current project (compose mode — needs repo clone)
-docker run -it --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$(pwd):$(pwd)" \
-  -w "$(pwd)" \
-  ghcr.io/jeanmachuca/code-inference
+## Usage
 
-# Run with isolated state (works from any directory)
-docker run -it --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$(pwd):$(pwd)" \
-  -w "$(pwd)" \
-  ghcr.io/jeanmachuca/code-inference --fresh
+From any project directory:
+
+```bash
+code-inference          # launch opencode with the inference stack
+code-inference --fresh  # standalone opencode (no inference backend)
+code-inference --help   # show usage
 ```
 
 ## How it works
 
-The image contains the full [code-inference-ai](https://github.com/jeanmachuca/code-inference) repo at `/repo` with Docker CLI and Compose installed. Published to `ghcr.io/jeanmachuca/code-inference`. The entrypoint `start.sh` delegates to one of two launchers:
+`code-inference` is a thin wrapper around `docker compose` from this repo. It:
 
-| Flag | Launcher | Mechanism | State |
-|------|----------|-----------|-------|
-| *(none)* | `launch-opencode.sh` | `docker compose --profile tools run --rm opencode` | Ephemeral (no volumes) |
-| `--fresh` | `launch-fresh-opencode.sh` | `docker run ... ghcr.io/anomalyco/opencode` with named volumes | Persistent across runs |
+1. Clones the repo to `~/.code-inference/` (one-time install)
+2. On each run, calls `docker compose --profile tools run --rm opencode` from your project directory
+3. Mounts your project at `/workspace` inside the opencode container
+4. The local inference stack (`llama.cpp` + API) runs alongside via the `stack` profile
 
-The launchers build and run the opencode container with the repo's compose file, mounting your project directory as the workspace. The local inference backend (`llama.cpp`, API, prompt processing) runs alongside via `docker compose --profile stack up` if needed.
+The `--fresh` flag skips the compose stack and runs opencode standalone via `ghcr.io/anomalyco/opencode` with persistent named volumes.
 
-> **Docker socket (DooD, not DinD):** The image binds the host's Docker socket (`/var/run/docker.sock`), so `docker` and `docker compose` commands inside the container are executed by the **host's** Docker daemon. This is Docker-outside-of-Docker (socket binding), not Docker-in-Docker (which would require `--privileged` and running a nested `dockerd`). The launch scripts talk to the host daemon directly — no nested runtime needed.
+No Docker-in-Docker, no wrapper image, no extra daemons.
 
 ## Requirements
 
 - Docker with Compose v2
-- Docker socket mounted (`-v /var/run/docker.sock:/var/run/docker.sock`)
-- Your project directory mounted at the same path (`-v "$(pwd):$(pwd)" -w "$(pwd)"`)
+- Git
+
+## Install details
+
+See [docs/installation.md](docs/installation.md) for:
+
+- Platform-specific instructions (Linux, macOS, Windows)
+- Manual install
+- Uninstall
+- Environment variables
 
 ## Development
 
