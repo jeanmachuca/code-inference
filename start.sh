@@ -71,15 +71,19 @@ case "${1:-}" in
 esac
 
 case "${1:-}" in
-  --fresh|--full-isolation)
+  --fresh)
     shift
     exec "$SCRIPT_DIR/launch-fresh-opencode.sh" "$@"
     ;;
+  --full-isolation)
+    exec "$SCRIPT_DIR/launch-opencode.sh" --full-isolation
+    ;;
   --help|-h)
-    echo "Usage: code-inference [--fresh] [-- opencode-args]"
+    echo "Usage: code-inference [--fresh|--full-isolation] [-- opencode-args]"
     echo ""
     echo "Options:"
-    echo "  --fresh, --full-isolation  Run opencode standalone without the inference stack"
+    echo "  --fresh              Run opencode standalone (no inference stack, persistent named volumes)"
+    echo "  --full-isolation     Run opencode via compose with scoped project name (inference, ephemeral)"
     ;;
   *)
     exec "$SCRIPT_DIR/launch-opencode.sh" "$@"
