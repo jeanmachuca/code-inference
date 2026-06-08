@@ -1,14 +1,11 @@
 # syntax=docker/dockerfile:1
-# OpenCode CLI — AI coding assistant in Docker.
-# Designed to run on any host directory by binding the current folder to /workspace.
-# The compose service uses ${PWD} so opencode works from any directory,
-# not just this repo — mount any project folder into the container.
+# OpenCode runtime — adds dev tooling on top of ghcr.io/anomalyco/opencode.
 #
-# Usage (from any directory with access to this compose file):
-#   docker compose --profile tools run --rm opencode
+# Published to ghcr.io/jeanmachuca/code-inference for pre-built use.
+# The compose service builds from this Dockerfile; the pre-built image
+# is used via `docker run ghcr.io/jeanmachuca/code-inference` or in CI.
 #
-# To run outside this repo's compose context:
-#   docker run -it --rm -v $(pwd):/workspace ghcr.io/anomalyco/opencode
+# For the recommended CLI workflow, see README.md and docs/installation.md.
 
 FROM ghcr.io/anomalyco/opencode
 
