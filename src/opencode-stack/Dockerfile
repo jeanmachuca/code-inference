@@ -17,7 +17,9 @@ RUN apk --update --no-cache add \
     python3 \
     py3-pip \
     pre-commit \
-    ruff 
+    ruff \
+    nodejs \
+    npm
 
 
 # Create non-root user for running opencode
