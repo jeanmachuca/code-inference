@@ -9,13 +9,22 @@ case "${1:-}" in
   *)
     MISSING=""
     if [ ! -f "./opencode.json" ]; then
-      MISSING="$MISSING  - opencode.json\n"
+      MISSING="$MISSING  - opencode.json                              (provider config — models, instructions, provider URL)\n"
     fi
     if [ ! -f "./AGENTS.md" ]; then
-      MISSING="$MISSING  - AGENTS.md\n"
+      MISSING="$MISSING  - AGENTS.md                                  (instructions for the AI agent — conventions, commands)\n"
     fi
     if [ ! -f "./.opencode/instructions/git-workflow.md" ]; then
-      MISSING="$MISSING  - .opencode/instructions/git-workflow.md\n"
+      MISSING="$MISSING  - .opencode/instructions/git-workflow.md     (git workflow rules — branching, PRs, tags, sync)\n"
+    fi
+    if [ ! -f "./.pre-commit-config.yaml" ]; then
+      MISSING="$MISSING  - .pre-commit-config.yaml                    (pre-commit hooks — whitespace, YAML, large files)\n"
+    fi
+    if [ ! -f "./dev-requirements.txt" ]; then
+      MISSING="$MISSING  - dev-requirements.txt                       (dev dependencies — pre-commit, linters, type checkers)\n"
+    fi
+    if [ ! -f "./.github/workflows/ci.yml" ]; then
+      MISSING="$MISSING  - .github/workflows/                         (CI/CD — lint, test, auto-PR, release workflows)\n"
     fi
     if [ -n "$MISSING" ]; then
       echo "Missing config files in $(pwd):"
@@ -30,13 +39,29 @@ case "${1:-}" in
             echo "Created $(pwd)/opencode.json"
           fi
           if [ ! -f "./AGENTS.md" ]; then
-            cp "$SCRIPT_DIR/AGENTS.md" "./AGENTS.md"
+            cp "$SCRIPT_DIR/AGENTS.md.example" "./AGENTS.md"
             echo "Created $(pwd)/AGENTS.md"
           fi
           if [ ! -f "./.opencode/instructions/git-workflow.md" ]; then
             mkdir -p "./.opencode/instructions"
-            cp "$SCRIPT_DIR/.opencode/instructions/git-workflow.md" "./.opencode/instructions/git-workflow.md"
+            cp "$SCRIPT_DIR/.opencode/instructions/git-workflow.md.example" "./.opencode/instructions/git-workflow.md"
             echo "Created $(pwd)/.opencode/instructions/git-workflow.md"
+          fi
+          if [ ! -f "./.pre-commit-config.yaml" ]; then
+            cp "$SCRIPT_DIR/.pre-commit-config.yaml.example" "./.pre-commit-config.yaml"
+            echo "Created $(pwd)/.pre-commit-config.yaml"
+          fi
+          if [ ! -f "./dev-requirements.txt" ]; then
+            cp "$SCRIPT_DIR/dev-requirements.txt.example" "./dev-requirements.txt"
+            echo "Created $(pwd)/dev-requirements.txt"
+          fi
+          if [ ! -f "./.github/workflows/ci.yml" ]; then
+            mkdir -p "./.github/workflows"
+            for f in "$SCRIPT_DIR"/.github/workflows.example/*.yml; do
+              [ -f "$f" ] || continue
+              cp "$f" "./.github/workflows/$(basename "$f")"
+              echo "Created $(pwd)/.github/workflows/$(basename "$f")"
+            done
           fi
           echo "Customize as needed."
           ;;
