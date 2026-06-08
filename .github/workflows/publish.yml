@@ -1,4 +1,23 @@
 name: Publish image
+#
+# Tag-based publishing with SemVer — image tags follow git tags.
+#
+#   Version strategy (adhere to Semantic Versioning 2.0.0):
+#     PATCH (v1.0.0 → v1.0.1):  Bug fixes, refactors, docs, CI changes.
+#     MINOR (v1.0.0 → v1.1.0):  New features, additions, non-breaking changes.
+#     MAJOR (v1.0.0 → v2.0.0):  Breaking changes (API, config, interface).
+#
+#   Process:
+#     1. Merge topic PR → development
+#     2. Open release PR: development → main
+#     3. Merge release PR
+#     4. Tag on main: git tag -a vMAJOR.MINOR.PATCH -m "..."
+#     5. Push tag:       git push origin vMAJOR.MINOR.PATCH
+#
+#   Integration tags on development (after topic merge):
+#     git tag -a vMAJOR.MINOR.PATCH-dev.N -m "..."
+#     git push origin vMAJOR.MINOR.PATCH-dev.N
+#
 
 on:
   push:
