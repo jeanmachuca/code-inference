@@ -35,10 +35,12 @@ RUN mkdir -p \
     /home/opencode/.cache/opencode \
     && chown -R opencode:opencode /home/opencode
 
-# Bootstrap script for gh auth and SSH config workaround
-COPY bootstrap-container.sh /home/opencode/bootstrap-container.sh
-RUN chown opencode:opencode /home/opencode/bootstrap-container.sh && \
-    chmod +x /home/opencode/bootstrap-container.sh
+# Entrypoint: sets up profile, gh auth, git identity, then execs opencode
+COPY src/opencode-stack/entrypoint.sh /home/opencode/entrypoint.sh
+RUN chown opencode:opencode /home/opencode/entrypoint.sh && \
+    chmod +x /home/opencode/entrypoint.sh
 
 # Override WORKDIR so the container always opens at the mounted source
 WORKDIR /workspace
+
+ENTRYPOINT ["/home/opencode/entrypoint.sh"]

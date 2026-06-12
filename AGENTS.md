@@ -2,7 +2,7 @@
 
 Local inference stack. FastAPI gateway proxies to llama.cpp; all inference stays on-host. PII masking (Chilean RUT), char-level truncation, intent tagging.
 
-Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode.json` instruction).
+Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode.json` instruction). Comprehensive config reference: `docs/settings.md`.
 
 ## Docker commands
 
@@ -13,36 +13,31 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 | Unit tests (no inference needed) | `make test` |
 | Single test | `docker compose --profile stack run --rm --no-deps api pytest -v tests/api/test_prompt.py::TEST_NAME` |
 | Shell into API container | `docker compose --profile stack run --rm api sh` |
-| Full restart (destroys all named volumes: `training_data`, `opencode_*`) | `./restart.sh` |
+| Full restart (destroys named volumes) | `./restart.sh` |
 
-## Host commands (for CI / pre-commit)
+## Host commands (CI / pre-commit)
 
 | Action | Command |
 |--------|---------|
 | Ruff lint | `ruff check .` |
 | Ruff format check | `ruff format --check .` |
 | mypy | `mypy --config-file=pyproject.toml --no-strict-optional --ignore-missing-imports src/` |
-| Pre-commit (all hooks) | `pre-commit run --all-files` |
+| Pre-commit | `pre-commit run --all-files` |
 
 ## Architecture
 
 - **Entrypoint:** `src/services/api/app/main.py:22` — FastAPI app. Routes: `GET /health`, `GET /health/ready` (pings inference `/v1/models`), `POST /v1/chat/completions` (proxies after prompt processing).
-- **Prompt layer:** `src/services/api/app/prompt.py` — RUT masking via regex `_RUT_RE`, char-level truncation (last user message only, appends `…[truncated]`), intent tagging from `X-code_inference-Intent` header.
+- **Request flow:** opencode → api (RUT mask, truncate, tag) → inference (llama.cpp). Three-hop chain on `internal` network.
+- **Compose profiles:** `stack` (inference+api, default), `tools` (opencode CLI), `alternate-inference` (vLLM, **not wired** to `internal` network).
+- **Only inference (llama.cpp) is production-ready.** Other backends (vllm, ollama) are experimental stubs.
+- **Prompt processing:** `src/services/api/app/prompt.py` — RUT masking via regex `_RUT_RE`, char-level truncation (last user message only, appends `…[truncated]`), intent tagging.
+- **No raw prompts logged** — only `request_id`, `tags`, `truncated`, `pii_masked` flags. Response headers: `X-Request-Id`, `X-Prompt-Truncated`, `X-Prompt-Pii-Masked`.
 - **Config:** `src/services/api/app/config.py` — pydantic-settings reads `.env` at module level (singleton).
-- **Startup wait:** API polls `inference:8080/v1/models` for up to 60s before accepting requests.
-- **Retry:** 3 attempts with exponential backoff on connect/timeout errors to inference.
-- **Streaming:** `stream: true` returns SSE passthrough from inference; extra `model_extra` fields (tools, tool_choice, etc.) flow through.
-- **Compose profiles:** `stack` (inference+api, default), `tools` (opencode CLI), `alternate-inference` (vLLM experimental, **not wired** to `internal` network). Build context is project root.
-- **Volumes:** `model_data` (bind-mount `./models/:ro`), `training_data` (named, **destroyed by `restart.sh`**).
-- **Stack Dockerfiles:** `src/services/api/Dockerfile` (python:3.12-alpine, uvicorn), `src/inference-vllm/`, `src/llama-stack/`, `src/ollama-stack/`, `src/opencode-stack/` (standalone builds outside default stack).
-- **Inference container** starts with `--jinja --tools ${TOOLS:-all} --ctx-size ${CONTEXT_SIZE:-16384} --threads ${THREADS:-6}`. Image: `ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538`.
 
 ## Code style
 
 - Ruff: line-length 100, target py312, lint `E,F,I,N,W,UP,SIM`, **single quotes**.
 - mypy: `--no-strict-optional --ignore-missing-imports`.
-- No raw prompts logged — only `request_id`, `tags`, `truncated`, `pii_masked` flags.
-- Response headers: `X-Request-Id`, `X-Prompt-Truncated`, `X-Prompt-Pii-Masked`.
 
 ## Setup
 
@@ -64,14 +59,18 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 
 ## Gotchas
 
-- **`opencode.json` is gitignored** — `opencode.json.example` is the committed template. Actual config loads `AGENTS.md` + `.opencode/instructions/git-workflow.md`.
+- **`opencode.json` is gitignored** — `templates/default/opencode.json` is the committed template. Actual config loads `AGENTS.md` + `.opencode/instructions/git-workflow.md`.
+- **`templates/default/`** bootstraps new projects via `start.sh` (copies `opencode.json`, `AGENTS.md`, git workflow, CI workflows).
 - **`.dockerignore` excludes `docs/`** — cannot COPY docs into any image.
-- **`restart.sh`** runs `docker compose --profile stack down -v` then `up --force-recreate --build --remove-orphans -d` — destroys **all** named volumes (`training_data`, `opencode_*`). Bind-mount `model_data` survives.
+- **`restart.sh`** destroys **all** named volumes (`training_data`, `opencode_*`). Bind-mount `model_data` survives.
 - **`make build`** builds both `stack` and `tools` profiles (pulls `ghcr.io/anomalyco/opencode`).
 - **`make up`** always runs `--build` (picks up local code changes).
 - **`CONTEXT_SIZE`:** `.env.example` defaults to 1024; compose shell default is 16384; `.env` sets 16384. Verify your actual value.
 - **`TOOLS` env var:** `.env.example` omits it; compose default is `all`; `.env` sets `TOOLS=all`.
-- **`inference-vllm` is on `alternate-inference` profile, NOT on `internal` network — cannot reach API.**
+- **`inference-vllm`** is on `alternate-inference` profile, NOT on `internal` network — cannot reach API.
 - **Default branch:** `development`. Gitflow + SemVer. No rebase. Keep merged topic branches.
 - **`models/*` and `*.gguf` gitignored** — do not commit weights.
-- **README/docs cross-references that do not exist on disk:** `docs/architecture.md`, `docs/rate-limits.md`, `docs/git-workflow.md`.
+- **SSH config workaround (macOS host):** `~/.ssh/config` may contain `UseKeychain yes` (macOS-only). This is invalid on Linux and causes SSH to abort. `entrypoint.sh` strips it and sets `GIT_SSH_COMMAND`. Container's compose service already sets `GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new`.
+- **`entrypoint.sh`** (`src/opencode-stack/entrypoint.sh`) is the Docker `ENTRYPOINT` for the opencode service. Runs on container start: sets up `.profile`, `gh auth`, git identity, then `exec opencode "$@"`. Interactive prompts (`gh auth`, git config) skip when not a TTY. Idempotent — skips configured steps.
+- **CLI wrapper chain:** `install.sh` → `start.sh` → `launch-opencode.sh`/`launch-fresh-opencode.sh`. Installs to `~/.code-inference`, creates `code-inference` bin command.
+- **Cross-references that don't exist on disk:** `docs/architecture.md`, `docs/rate-limits.md`, `docs/git-workflow.md`.
