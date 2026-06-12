@@ -21,6 +21,9 @@ ssh_cleanup() {
   if [ -n "${GH_SSH_HOME:-}" ] && [ -d "$GH_SSH_HOME" ]; then
     rm -rf "$GH_SSH_HOME"
   fi
+  if [ -n "${KNOWN_HOSTS_DIR:-}" ] && [ -d "$KNOWN_HOSTS_DIR" ]; then
+    rm -rf "$KNOWN_HOSTS_DIR"
+  fi
 }
 trap ssh_cleanup EXIT
 
@@ -51,7 +54,19 @@ fi
 # shellcheck source=/dev/null
 . "$HOME/.profile"
 
-# ── 2. gh auth (interactive only) ──────────────────────────────────────────────
+# ── 2. SSH known_hosts ───────────────────────────────────────────────────────────
+
+echo ">>> ~/.ssh is a Docker ro mount; using temp SSH dir for known_hosts..."
+KNOWN_HOSTS_DIR=$(mktemp -d /tmp/ssh-keyscan-XXXXXX)
+cp -r "$HOME/.ssh/." "$KNOWN_HOSTS_DIR/" 2>/dev/null || true
+export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=$KNOWN_HOSTS_DIR/known_hosts -o StrictHostKeyChecking=accept-new"
+
+if ! grep -q '^github.com ' "$KNOWN_HOSTS_DIR/known_hosts" 2>/dev/null; then
+  echo ">>> Adding github.com to SSH known_hosts..."
+  ssh-keyscan github.com >> "$KNOWN_HOSTS_DIR/known_hosts" 2>/dev/null || echo ">>> Warn: could not fetch github.com SSH key (network unavailable?)"
+fi
+
+# ── 3. gh auth (interactive only) ──────────────────────────────────────────────
 
 if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
   echo ""
@@ -87,7 +102,7 @@ if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
   echo ">>> GH_TOKEN: ${GH_TOKEN:+set}"
 fi
 
-# ── 3. Git committer identity ───────────────────────────────────────────────────
+# ── 4. Git committer identity ───────────────────────────────────────────────────
 
 CURRENT_NAME=$(git config --global user.name 2>/dev/null || echo "")
 CURRENT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
