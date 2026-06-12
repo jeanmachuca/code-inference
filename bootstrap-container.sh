@@ -62,7 +62,35 @@ if ! gh auth status >/dev/null 2>&1; then
   echo ">>> GH_TOKEN: ${GH_TOKEN:+set}"
 fi
 
+# ── 3. Git committer identity ───────────────────────────────────────────────────
+
+CURRENT_NAME=$(git config --global user.name 2>/dev/null || echo "")
+CURRENT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+
+if [ -z "$CURRENT_NAME" ] || [ -z "$CURRENT_EMAIL" ]; then
+  echo ""
+  echo ">>> Git committer identity is not fully configured."
+  echo "    (name: ${CURRENT_NAME:-<unset>}, email: ${CURRENT_EMAIL:-<unset>})"
+fi
+
+if [ -z "$CURRENT_NAME" ]; then
+  printf "Enter your full name for git commits: "
+  read -r INPUT_NAME
+  if [ -n "$INPUT_NAME" ]; then
+    git config --global user.name "$INPUT_NAME"
+  fi
+fi
+
+if [ -z "$CURRENT_EMAIL" ]; then
+  printf "Enter your email for git commits: "
+  read -r INPUT_EMAIL
+  if [ -n "$INPUT_EMAIL" ]; then
+    git config --global user.email "$INPUT_EMAIL"
+  fi
+fi
+
 echo ""
 echo "=== Setup complete ==="
 echo "GH_TOKEN: ${GH_TOKEN:+set}"
 echo "GIT_SSH_COMMAND: ${GIT_SSH_COMMAND:+set}"
+echo "Git user: $(git config --global user.name 2>/dev/null || echo '<unset>') <$(git config --global user.email 2>/dev/null || echo '<unset>')>"
