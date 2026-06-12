@@ -48,9 +48,9 @@ fi
 # shellcheck source=/dev/null
 . "$HOME/.profile"
 
-# ── 2. gh auth ─────────────────────────────────────────────────────────────────
+# ── 2. gh auth (interactive only) ──────────────────────────────────────────────
 
-if ! gh auth status >/dev/null 2>&1; then
+if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
   echo ""
   echo ">>> gh is not authenticated."
   echo ">>> Starting device-code login flow..."
@@ -73,24 +73,28 @@ if [ -z "$CURRENT_NAME" ] || [ -z "$CURRENT_EMAIL" ]; then
   echo "    (name: ${CURRENT_NAME:-<unset>}, email: ${CURRENT_EMAIL:-<unset>})"
 fi
 
-if [ -z "$CURRENT_NAME" ]; then
-  printf "Enter your full name for git commits: "
-  read -r INPUT_NAME
-  if [ -n "$INPUT_NAME" ]; then
-    git config --global user.name "$INPUT_NAME"
+if [ -t 0 ]; then
+  if [ -z "$CURRENT_NAME" ]; then
+    printf "Enter your full name for git commits: "
+    read -r INPUT_NAME
+    if [ -n "$INPUT_NAME" ]; then
+      git config --global user.name "$INPUT_NAME"
+    fi
   fi
+
+  if [ -z "$CURRENT_EMAIL" ]; then
+    printf "Enter your email for git commits: "
+    read -r INPUT_EMAIL
+    if [ -n "$INPUT_EMAIL" ]; then
+      git config --global user.email "$INPUT_EMAIL"
+    fi
+  fi
+
+  echo ""
+  echo "=== Setup complete ==="
+  echo "GH_TOKEN: ${GH_TOKEN:+set}"
+  echo "GIT_SSH_COMMAND: ${GIT_SSH_COMMAND:+set}"
+  echo "Git user: $(git config --global user.name 2>/dev/null || echo '<unset>') <$(git config --global user.email 2>/dev/null || echo '<unset>')>"
 fi
 
-if [ -z "$CURRENT_EMAIL" ]; then
-  printf "Enter your email for git commits: "
-  read -r INPUT_EMAIL
-  if [ -n "$INPUT_EMAIL" ]; then
-    git config --global user.email "$INPUT_EMAIL"
-  fi
-fi
-
-echo ""
-echo "=== Setup complete ==="
-echo "GH_TOKEN: ${GH_TOKEN:+set}"
-echo "GIT_SSH_COMMAND: ${GIT_SSH_COMMAND:+set}"
-echo "Git user: $(git config --global user.name 2>/dev/null || echo '<unset>') <$(git config --global user.email 2>/dev/null || echo '<unset>')>"
+exec opencode "$@"
