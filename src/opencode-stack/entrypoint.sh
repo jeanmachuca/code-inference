@@ -18,6 +18,9 @@ ssh_cleanup() {
   if [ -n "${SSH_TMP:-}" ] && [ -f "$SSH_TMP" ]; then
     rm -f "$SSH_TMP"
   fi
+  if [ -n "${GH_SSH_HOME:-}" ] && [ -d "$GH_SSH_HOME" ]; then
+    rm -rf "$GH_SSH_HOME"
+  fi
 }
 trap ssh_cleanup EXIT
 
@@ -55,7 +58,29 @@ if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
   echo ">>> gh is not authenticated."
   echo ">>> Starting device-code login flow..."
   echo ""
+
+  if [ ! -w "$HOME/.ssh" ] 2>/dev/null; then
+    echo ">>> ~/.ssh is not writable (Docker ro mount); using temp SSH dir..."
+    GH_SSH_HOME=$(mktemp -d /tmp/gh-home-XXXXXX)
+    mkdir -p "$GH_SSH_HOME/.ssh"
+    cp -r "$HOME/.ssh/." "$GH_SSH_HOME/.ssh/" 2>/dev/null || true
+    chmod 700 "$GH_SSH_HOME/.ssh"
+    ORIG_HOME="$HOME"
+    HOME="$GH_SSH_HOME"
+  fi
+
   gh auth login --git-protocol ssh --web
+
+  if [ -n "${ORIG_HOME:-}" ]; then
+    KEY_FILE=$(ls "$HOME/.ssh/id_ed25519" 2>/dev/null || ls "$HOME/.ssh/id_rsa" 2>/dev/null || true)
+    if [ -n "$KEY_FILE" ]; then
+      echo ">>> Configuring GIT_SSH_COMMAND to use generated key..."
+      export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o StrictHostKeyChecking=accept-new"
+    fi
+    HOME="$ORIG_HOME"
+    unset ORIG_HOME
+  fi
+
   echo ""
   echo ">>> Re-sourcing profile to pick up GH_TOKEN..."
   . "$HOME/.profile"
