@@ -51,7 +51,15 @@ fi
 # shellcheck source=/dev/null
 . "$HOME/.profile"
 
-# ── 2. gh auth (interactive only) ──────────────────────────────────────────────
+# ── 2. SSH known_hosts ───────────────────────────────────────────────────────────
+
+if ! grep -q '^github.com ' "$HOME/.ssh/known_hosts" 2>/dev/null; then
+  echo ">>> Adding github.com to SSH known_hosts..."
+  mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+  ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || echo ">>> Warn: could not fetch github.com SSH key (network unavailable?)"
+fi
+
+# ── 3. gh auth (interactive only) ──────────────────────────────────────────────
 
 if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
   echo ""
@@ -87,7 +95,7 @@ if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
   echo ">>> GH_TOKEN: ${GH_TOKEN:+set}"
 fi
 
-# ── 3. Git committer identity ───────────────────────────────────────────────────
+# ── 4. Git committer identity ───────────────────────────────────────────────────
 
 CURRENT_NAME=$(git config --global user.name 2>/dev/null || echo "")
 CURRENT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
