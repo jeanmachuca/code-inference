@@ -56,21 +56,15 @@ fi
 
 # ── 2. SSH known_hosts ───────────────────────────────────────────────────────────
 
-KNOWN_HOSTS_DIR="$HOME/.ssh"
-if [ ! -w "$HOME/.ssh" ] 2>/dev/null; then
-  echo ">>> ~/.ssh is not writable (Docker ro mount); using temp SSH dir..."
-  KNOWN_HOSTS_DIR=$(mktemp -d /tmp/ssh-keyscan-XXXXXX)
-  chmod 700 "$KNOWN_HOSTS_DIR"
-  cp -r "$HOME/.ssh/." "$KNOWN_HOSTS_DIR/" 2>/dev/null || true
-  export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=$KNOWN_HOSTS_DIR/known_hosts -o StrictHostKeyChecking=accept-new"
-fi
+echo ">>> ~/.ssh is a Docker ro mount; using temp SSH dir for known_hosts..."
+KNOWN_HOSTS_DIR=$(mktemp -d /tmp/ssh-keyscan-XXXXXX)
+cp -r "$HOME/.ssh/." "$KNOWN_HOSTS_DIR/" 2>/dev/null || true
+export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=$KNOWN_HOSTS_DIR/known_hosts -o StrictHostKeyChecking=accept-new"
 
 if ! grep -q '^github.com ' "$KNOWN_HOSTS_DIR/known_hosts" 2>/dev/null; then
   echo ">>> Adding github.com to SSH known_hosts..."
   ssh-keyscan github.com >> "$KNOWN_HOSTS_DIR/known_hosts" 2>/dev/null || echo ">>> Warn: could not fetch github.com SSH key (network unavailable?)"
 fi
-
-[ "$KNOWN_HOSTS_DIR" != "$HOME/.ssh" ] && echo ">>> SSH known_hosts written to $KNOWN_HOSTS_DIR/known_hosts"
 
 # ── 3. gh auth (interactive only) ──────────────────────────────────────────────
 
