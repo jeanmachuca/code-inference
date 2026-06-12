@@ -35,5 +35,10 @@ RUN mkdir -p \
     /home/opencode/.cache/opencode \
     && chown -R opencode:opencode /home/opencode
 
+# Bootstrap script for gh auth and SSH config workaround
+COPY bootstrap-container.sh /home/opencode/bootstrap-container.sh
+RUN chown opencode:opencode /home/opencode/bootstrap-container.sh && \
+    chmod +x /home/opencode/bootstrap-container.sh
+
 # Override WORKDIR so the container always opens at the mounted source
 WORKDIR /workspace
