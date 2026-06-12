@@ -15,3 +15,5 @@ models/*
 !models/README.md
 opencode.json
 !/templates/default/opencode.json
+sessions/
+.sessions/
