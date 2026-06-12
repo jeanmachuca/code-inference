@@ -19,8 +19,9 @@ RUN apk --update --no-cache add \
     pre-commit \
     ruff \
     nodejs \
-    npm
-
+    npm \
+    deno \
+    github-cli
 
 # Create non-root user for running opencode
 RUN addgroup -S opencode && adduser -S -h /home/opencode -G opencode opencode
