@@ -17,6 +17,7 @@ RUN apk --update --no-cache add \
     python3 \
     py3-pip \
     pre-commit \
+    xclip \
     ruff \
     nodejs \
     npm \
