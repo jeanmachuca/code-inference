@@ -23,7 +23,8 @@ RUN apk --update --no-cache add \
     npm \
     deno \
     github-cli \
-    git-lfs    
+    git-lfs \
+    glab 
 
 # Create non-root user for running opencode
 RUN addgroup -S opencode && adduser -S -h /home/opencode -G opencode opencode
