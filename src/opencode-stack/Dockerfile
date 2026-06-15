@@ -48,6 +48,6 @@ RUN chown opencode:opencode /home/opencode/entrypoint.sh && \
 WORKDIR /workspace
 # Tell Puppeteer to skip the glibc download
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser    
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium  
 
 ENTRYPOINT ["/home/opencode/entrypoint.sh"]
