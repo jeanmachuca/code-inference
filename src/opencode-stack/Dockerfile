@@ -24,7 +24,8 @@ RUN apk --update --no-cache add \
     deno \
     github-cli \
     git-lfs \
-    glab 
+    glab \
+    chromium
 
 # Create non-root user for running opencode
 RUN addgroup -S opencode && adduser -S -h /home/opencode -G opencode opencode
@@ -45,5 +46,8 @@ RUN chown opencode:opencode /home/opencode/entrypoint.sh && \
 
 # Override WORKDIR so the container always opens at the mounted source
 WORKDIR /workspace
+# Tell Puppeteer to skip the glibc download
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser    
 
 ENTRYPOINT ["/home/opencode/entrypoint.sh"]
