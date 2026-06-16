@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Header, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -22,6 +23,28 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title='code_inference AI API', version='0.1.0')
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+
+
+@app.middleware('http')
+async def log_requests(request: Request, call_next):
+    req_id = str(uuid.uuid4())
+    request.state.request_id = req_id
+    start = time.time()
+    method = request.method
+    path = request.url.path
+    client = request.client.host if request.client else 'unknown'
+    logger.info('request %s %s %s client=%s', method, path, req_id, client)
+    response = await call_next(request)
+    duration = time.time() - start
+    logger.info(
+        'response %s %s status=%s duration=%.3f',
+        method,
+        path,
+        response.status_code,
+        duration,
+    )
+    response.headers['X-Request-Id'] = req_id
+    return response
 
 
 class ChatMessage(BaseModel):
@@ -82,10 +105,20 @@ async def health_ready() -> dict[str, Any]:
 @limiter.limit(f'{settings.rate_limit_per_minute}/minute')
 async def chat_completions(
     request: Request,
-    body: ChatCompletionRequest,
-    x_code_inference_intent: str | None = Header(default=None, alias='X-code_inference-Intent'),
 ) -> JSONResponse | StreamingResponse:
-    request_id = str(uuid.uuid4())
+    request_id = request.state.request_id
+    x_code_inference_intent = request.headers.get('X-code_inference-Intent')
+
+    try:
+        raw = await request.json()
+        body = ChatCompletionRequest(**raw)
+    except (ValidationError, ValueError, TypeError) as e:
+        logger.warning('invalid request body request_id=%s error=%s', request_id, e)
+        return JSONResponse(
+            content={'error': 'invalid request body', 'detail': str(e)},
+            status_code=422,
+        )
+
     raw_messages = [m.model_dump() for m in body.messages]
 
     pr = process_messages(
@@ -127,7 +160,6 @@ async def chat_completions(
             _stream_chat(forward, inf_url),
             media_type='text/event-stream',
             headers={
-                'X-Request-Id': request_id,
                 'X-Prompt-Truncated': '1' if pr.truncated else '0',
                 'X-Prompt-Pii-Masked': '1' if pr.pii_masked else '0',
             },
@@ -153,7 +185,6 @@ async def chat_completions(
         content=payload,
         status_code=inf.status_code,
         headers={
-            'X-Request-Id': request_id,
             'X-Prompt-Truncated': '1' if pr.truncated else '0',
             'X-Prompt-Pii-Masked': '1' if pr.pii_masked else '0',
         },
