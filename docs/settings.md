@@ -228,8 +228,11 @@ opencode                  llama-api                  llama-inference
   │                          │◄──────────────────────────│
   │                          │                           │
   │                  4. Apply rate limit (slowapi)
-  │                  5. Log metadata (no prompts)
-  │                  6. Add X-Request-Id,
+  │                  5. postprocess_response() —          │
+  │                     detect tool calls, validate,      │
+  │                     convert to OpenAI format          │
+  │                  6. Log metadata (no prompts)
+  │                  7. Add X-Request-Id,
   │                     X-Prompt-Truncated,
   │                     X-Prompt-Pii-Masked headers
   │◄─────────────────────────┤                           │
@@ -251,8 +254,79 @@ opencode                  llama-api                  llama-inference
 - Request ID and metadata headers on the response
 - Parameter passthrough: `max_tokens`, `temperature`, `top_p`, `frequency_penalty`, `presence_penalty`, `seed`, `stop`, plus any extras (`tools`, `tool_choice`, etc.)
 - Streaming passthrough (SSE) when `stream: true`
+- **Post-processing of inference responses** — detects raw tool call JSON in model output and converts to OpenAI-compatible `tool_calls` format (see [Post-processing](#post-processing-responsepy))
 - Retry with backoff on connect/timeout errors (3 attempts)
 - Startup wait: polls inference `/v1/models` for up to 60s before accepting requests
+
+---
+
+### Post-processing (`postprocessing.py`)
+
+**File:** `src/services/api/app/postprocessing.py`
+
+**Purpose:** Bridges the gap between how local models output tool calls and what the OpenAI SDK (`@ai-sdk/openai-compatible`) expects.
+
+#### Why it exists
+
+Many local LLMs (via llama.cpp) output tool calls as **raw JSON text** in the assistant's `content` field — often wrapped in markdown code fences:
+
+```
+```json
+{"name": "read_file", "arguments": {"path": "index.html"}}
+```
+```
+
+The OpenAI API specification requires tool calls to be returned as a structured `tool_calls` array in the message object. The `@ai-sdk/openai-compatible` SDK used by opencode expects this format. Without post-processing, opencode would see the JSON as a plain text response and never execute the tool.
+
+#### How it works
+
+**1. `parse_tool_call(content)`** — Detects tool call JSON in assistant message content:
+   - Strips markdown code fences (` ```json ... ``` `, ` ``` ... ``` `)
+   - Parses the remaining text as JSON
+   - Validates the structure has `name` (str) and `arguments` (dict or str)
+   - Returns the parsed tool call or `None`
+
+**2. `make_tool_call(tc)`** — Wraps a parsed tool call into OpenAI format:
+   ```python
+   {
+     "id": "call_<random>",
+     "type": "function",
+     "function": {"name": "...", "arguments": "..."}
+   }
+   ```
+
+**3. `_get_tool_names(tools)`** — Extracts allowed function names from the request's `tools` array. Used for validation to prevent hallucinated tool calls.
+
+**4. `postprocess_nonstreaming(body, tools=None)`** — For non-streaming responses:
+   - Extracts `tools` from the original request to get allowed function names
+   - If `tools` is `None` or empty → passes through unchanged (no tools expected)
+   - Runs `parse_tool_call` on `choices[0].message.content`
+   - If a tool call is detected **and** its `name` is in the allowed set → rewrites the message with `tool_calls`, sets `finish_reason` to `"tool_calls"`
+   - If `name` is NOT in the allowed set → passes through as text (hallucination rejected)
+   - Normal text responses are never affected
+
+**5. `postprocess_streaming(raw_gen, tools=None)`** — For streaming (SSE) responses:
+   - Buffers all SSE chunks from llama.cpp
+   - Reconstructs the full assistant content from `delta.content` across all events
+   - If no `tools` defined → passes through as-is
+   - If tool call detected and name is valid → emits properly formatted `tool_calls` SSE deltas:
+     1. Skeleton: `{"role":"assistant","tool_calls":[{"id":"call_...","function":{"name":"...","arguments":""}}]}`
+     2. Arguments streamed as incremental JSON string chunks
+     3. Finish: `{"finish_reason":"tool_calls"}`
+     4. `data: [DONE]`
+   - Handles non-SSE fallback: if llama.cpp returns a plain JSON response, it wraps it via `postprocess_nonstreaming` into a single SSE event
+
+#### Validation against hallucinated tool calls
+
+Some local models generate tool call JSON even when the user just says "hello". The `tools` parameter from the request acts as an allowlist:
+
+| `tools` in request | Name matches | Behavior |
+|--------------------|--------------|----------|
+| Not present | — | No conversion (pass through as text) |
+| Present | ✅ In allowlist | Convert to `tool_calls` |
+| Present | ❌ Not in allowlist | Treat as normal text (reject hallucination) |
+
+This ensures only **intended tool calls** are ever executed, regardless of which model is running or how it formats its output.
 
 ---
 

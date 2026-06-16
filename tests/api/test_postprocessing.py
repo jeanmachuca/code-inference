@@ -1,11 +1,16 @@
 import json
 
 from app.postprocessing import (
+    _get_tool_names,
     make_tool_call,
     parse_tool_call,
     postprocess_nonstreaming,
     postprocess_streaming,
 )
+
+_READ_FILE_TOOLS = [
+    {'type': 'function', 'function': {'name': 'read_file', 'description': 'Read a file', 'parameters': {'type': 'object', 'properties': {'path': {'type': 'string'}}, 'required': ['path']}}},
+]
 
 
 def test_parse_tool_call_markdown_json() -> None:
@@ -58,6 +63,34 @@ def test_parse_tool_call_missing_arguments() -> None:
     assert result is None
 
 
+def test_get_tool_names() -> None:
+    tools = [
+        {'type': 'function', 'function': {'name': 'read_file'}},
+        {'type': 'function', 'function': {'name': 'write_file'}},
+    ]
+    names = _get_tool_names(tools)
+    assert names == frozenset({'read_file', 'write_file'})
+
+
+def test_get_tool_names_empty() -> None:
+    assert _get_tool_names(None) == frozenset()
+    assert _get_tool_names([]) == frozenset()
+    assert _get_tool_names('not a list') == frozenset()
+
+
+def test_get_tool_names_skips_malformed() -> None:
+    tools = [
+        {'type': 'function', 'function': {'name': 'valid'}},
+        {'type': 'function', 'function': {'name': ''}},
+        {'type': 'function', 'function': {}},
+        {'type': 'not_function', 'function': {'name': 'ignored'}},
+        {'type': 'function'},
+        'not a dict',
+    ]
+    names = _get_tool_names(tools)
+    assert names == frozenset({'valid'})
+
+
 def test_make_tool_call_structure() -> None:
     tc = {'name': 'read_file', 'arguments': {'path': 'bar.txt'}}
     result = make_tool_call(tc)
@@ -81,12 +114,48 @@ def test_postprocess_nonstreaming_tool_call() -> None:
             'finish_reason': 'stop',
         }],
     }
-    result = postprocess_nonstreaming(body)
+    result = postprocess_nonstreaming(body, tools=_READ_FILE_TOOLS)
     msg = result['choices'][0]['message']
     assert msg['content'] is None
     assert len(msg['tool_calls']) == 1
     assert msg['tool_calls'][0]['function']['name'] == 'read_file'
     assert result['choices'][0]['finish_reason'] == 'tool_calls'
+
+
+def test_postprocess_nonstreaming_no_tools_no_conversion() -> None:
+    body = {
+        'id': 'test',
+        'choices': [{
+            'index': 0,
+            'message': {
+                'role': 'assistant',
+                'content': '{"name": "read_file", "arguments": {"path": "x.txt"}}',
+            },
+            'finish_reason': 'stop',
+        }],
+    }
+    result = postprocess_nonstreaming(body)
+    assert result['choices'][0]['message']['content'] is not None
+    assert 'tool_calls' not in result['choices'][0]['message']
+    assert result['choices'][0]['finish_reason'] == 'stop'
+
+
+def test_postprocess_nonstreaming_hallucinated_name() -> None:
+    body = {
+        'id': 'test',
+        'choices': [{
+            'index': 0,
+            'message': {
+                'role': 'assistant',
+                'content': '{"name": "write_file", "arguments": {"path": "x.txt", "content": "hello"}}',
+            },
+            'finish_reason': 'stop',
+        }],
+    }
+    result = postprocess_nonstreaming(body, tools=_READ_FILE_TOOLS)
+    assert result['choices'][0]['message']['content'] is not None
+    assert 'tool_calls' not in result['choices'][0]['message']
+    assert result['choices'][0]['finish_reason'] == 'stop'
 
 
 def test_postprocess_nonstreaming_normal_text_pass_through() -> None:
@@ -124,12 +193,97 @@ async def test_postprocess_streaming_tool_call() -> None:
         for c in chunks:
             yield c
 
-    results = [line async for line in postprocess_streaming(_raw())]
+    results = [line async for line in postprocess_streaming(_raw(), tools=_READ_FILE_TOOLS)]
     output = b''.join(results).decode('utf-8')
 
     assert 'tool_calls' in output
     assert 'read_file' in output
     assert 'finish_reason":"tool_calls"' in output
+
+
+async def test_postprocess_streaming_no_tools_no_conversion() -> None:
+    chunks = [
+        b'data: {"id":"x","created":1,"model":"m","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n',
+        b'data: {"choices":[{"index":0,"delta":{"content":"{\\"name\\": \\"read_file\\", \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"},"finish_reason":null}]}\n\n',
+        b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+        b'data: [DONE]\n\n',
+    ]
+
+    async def _raw() -> bytes:
+        for c in chunks:
+            yield c
+
+    results = [line async for line in postprocess_streaming(_raw())]
+    output = b''.join(results).decode('utf-8')
+
+    assert 'tool_calls' not in output
+    assert 'read_file' in output
+
+
+async def test_postprocess_streaming_hallucinated_name() -> None:
+    chunks = [
+        b'data: {"id":"x","created":1,"model":"m","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n',
+        b'data: {"choices":[{"index":0,"delta":{"content":"{\\"name\\": \\"write_file\\", \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"},"finish_reason":null}]}\n\n',
+        b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+        b'data: [DONE]\n\n',
+    ]
+
+    async def _raw() -> bytes:
+        for c in chunks:
+            yield c
+
+    results = [line async for line in postprocess_streaming(_raw(), tools=_READ_FILE_TOOLS)]
+    output = b''.join(results).decode('utf-8')
+
+    assert 'tool_calls' not in output
+    assert 'write_file' in output
+
+
+async def test_postprocess_streaming_non_sse_tool_call() -> None:
+    body = json.dumps({
+        'id': 'test',
+        'choices': [{
+            'index': 0,
+            'message': {
+                'role': 'assistant',
+                'content': '{"name": "read_file", "arguments": {"path": "x.txt"}}',
+            },
+            'finish_reason': 'stop',
+        }],
+    })
+
+    async def _raw() -> bytes:
+        yield body.encode('utf-8')
+
+    results = [line async for line in postprocess_streaming(_raw(), tools=_READ_FILE_TOOLS)]
+    output = b''.join(results).decode('utf-8')
+
+    assert 'tool_calls' in output
+    assert 'read_file' in output
+    assert 'finish_reason":"tool_calls"' in output
+
+
+async def test_postprocess_streaming_non_sse_normal_text() -> None:
+    body = json.dumps({
+        'id': 'test',
+        'choices': [{
+            'index': 0,
+            'message': {
+                'role': 'assistant',
+                'content': 'Hello! How can I help you?',
+            },
+            'finish_reason': 'stop',
+        }],
+    })
+
+    async def _raw() -> bytes:
+        yield body.encode('utf-8')
+
+    results = [line async for line in postprocess_streaming(_raw())]
+    output = b''.join(results).decode('utf-8')
+
+    assert 'Hello! How can I help you?' in output
+    assert 'tool_calls' not in output
 
 
 async def test_postprocess_streaming_normal_text() -> None:

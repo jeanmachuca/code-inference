@@ -145,6 +145,7 @@ async def chat_completions(
         'messages': pr.messages,
     }
     for field in (
+        'stream',
         'max_tokens',
         'temperature',
         'top_p',
@@ -159,6 +160,8 @@ async def chat_completions(
     if body.model_extra:
         forward.update(body.model_extra)
 
+    tools = body.model_extra.get('tools') if body.model_extra else None
+
     inf_url = f'{settings.inference_url}/v1/chat/completions'
 
     if body.stream:
@@ -170,7 +173,7 @@ async def chat_completions(
             pr.pii_masked,
         )
         return StreamingResponse(
-            postprocess_streaming(_stream_chat(forward, inf_url)),
+            postprocess_streaming(_stream_chat(forward, inf_url), tools=tools),
             media_type='text/event-stream',
             headers={
                 'X-Prompt-Truncated': '1' if pr.truncated else '0',
@@ -190,7 +193,7 @@ async def chat_completions(
     )
 
     try:
-        payload = postprocess_nonstreaming(inf.json())
+        payload = postprocess_nonstreaming(inf.json(), tools=tools)
     except Exception:
         payload = {'error': inf.text[:2000]}
 

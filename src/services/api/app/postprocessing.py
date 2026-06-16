@@ -1,8 +1,17 @@
 """
-Post-processing of inference responses:
-- Detects raw tool call JSON in assistant messages
-- Converts to OpenAI-compatible tool_calls format
-- Passes through normal text responses unchanged
+Post-processing of inference responses.
+See docs/settings.md § 'Post-processing (postprocessing.py)' for full docs.
+
+Why: Local models via llama.cpp output tool calls as raw JSON text
+     (often markdown-wrapped). The @ai-sdk/openai-compatible SDK expects
+     a structured tool_calls array. This module bridges that gap.
+
+How: 1. parse_tool_call detects {name, arguments} JSON in content
+     2. _get_tool_names extracts allowed names from the request's tools
+     3. postprocess_nonstreaming/postprocess_streaming rewrite
+        the response into OpenAI format when the name is valid
+     4. Hallucinated names (not in the request's tools) are rejected
+        and treated as normal text
 """
 
 from __future__ import annotations
@@ -62,6 +71,18 @@ def make_tool_call(tc: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _get_tool_names(tools: Any = None) -> frozenset[str]:
+    if not tools or not isinstance(tools, list):
+        return frozenset()
+    names: set[str] = set()
+    for t in tools:
+        if isinstance(t, dict) and t.get('type') == 'function':
+            fn = t.get('function')
+            if isinstance(fn, dict) and isinstance(fn.get('name'), str) and fn['name']:
+                names.add(fn['name'])
+    return frozenset(names)
+
+
 def _common_fields(first_event: dict[str, Any]) -> dict[str, Any]:
     return {
         'id': first_event.get('id', ''),
@@ -72,8 +93,12 @@ def _common_fields(first_event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def postprocess_nonstreaming(body: dict[str, Any]) -> dict[str, Any]:
+def postprocess_nonstreaming(body: dict[str, Any], tools: Any = None) -> dict[str, Any]:
     if not body.get('choices'):
+        return body
+
+    tool_names = _get_tool_names(tools)
+    if not tool_names:
         return body
 
     choice = body['choices'][0]
@@ -84,6 +109,8 @@ def postprocess_nonstreaming(body: dict[str, Any]) -> dict[str, Any]:
 
     tc = parse_tool_call(content)
     if tc is None:
+        return body
+    if tc['name'] not in tool_names:
         return body
 
     tool_call = make_tool_call(tc)
@@ -106,9 +133,22 @@ def _sse(data: dict[str, Any]) -> bytes:
     return f'data: {json.dumps(data, ensure_ascii=False)}\n\n'.encode('utf-8')
 
 
+def _infer_is_sse(raw_text: str) -> bool:
+    stripped = raw_text.strip()
+    return stripped.startswith('data: ') or stripped.startswith('data:[')
+
+
+def _sse_from_nonstreaming(data: dict[str, Any]) -> bytes:
+    data['object'] = 'chat.completion.chunk'
+    return _sse(data)
+
+
 async def postprocess_streaming(
     raw_gen: AsyncIterator[bytes],
+    tools: Any = None,
 ) -> AsyncIterator[bytes]:
+    tool_names = _get_tool_names(tools)
+
     buffer = bytearray()
     async for chunk in raw_gen:
         buffer.extend(chunk)
@@ -118,6 +158,22 @@ async def postprocess_streaming(
         return
 
     raw_text = raw_bytes.decode('utf-8', errors='replace')
+
+    if not _infer_is_sse(raw_text):
+        try:
+            body = json.loads(raw_text)
+        except json.JSONDecodeError:
+            yield raw_bytes
+            return
+        body = postprocess_nonstreaming(body, tools=tools)
+        yield _sse_from_nonstreaming(body)
+        yield b'data: [DONE]\n\n'
+        return
+
+    if not tool_names:
+        yield raw_bytes
+        return
+
     events = raw_text.split('\n\n')
 
     first_event_data: dict[str, Any] | None = None
@@ -151,7 +207,7 @@ async def postprocess_streaming(
     full_content = ''.join(full_content_parts)
     tc = parse_tool_call(full_content) if full_content.strip() else None
 
-    if tc is None:
+    if tc is None or tc['name'] not in tool_names:
         yield raw_bytes
         return
 
