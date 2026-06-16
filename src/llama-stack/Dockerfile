@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir llama-stack llama-models
 
 WORKDIR /models
 VOLUME ["/models"]
-
+# Inside the container or as a sidecar
+RUN echo 'Installing the local model...' && mv /staging/model.gguf /models/model.gguf
 ENTRYPOINT []
 CMD ["llama-model", "--help"]
