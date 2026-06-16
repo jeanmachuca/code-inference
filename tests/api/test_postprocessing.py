@@ -302,6 +302,6 @@ async def test_postprocess_streaming_normal_text() -> None:
     results = [line async for line in postprocess_streaming(_raw())]
     output = b''.join(results).decode('utf-8')
 
-    assert '"content": "Hello"' in output
-    assert '"content": " world"' in output
+    assert '"content":"Hello"' in output
+    assert '"content":" world"' in output
     assert 'tool_calls' not in output
