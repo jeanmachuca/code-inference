@@ -17,3 +17,5 @@ opencode.json
 !/templates/default/opencode.json
 sessions/
 .sessions/
+**/.DS_Store/*
+.DS_Store
