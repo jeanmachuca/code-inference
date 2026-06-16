@@ -16,11 +16,11 @@ How: 1. parse_tool_call detects {name, arguments} JSON in content
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 import json
 import re
-from typing import Any
 import uuid
+from collections.abc import AsyncIterator
+from typing import Any
 
 
 _MD_FENCE_RE = re.compile(
