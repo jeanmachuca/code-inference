@@ -50,6 +50,7 @@ async def log_requests(request: Request, call_next):
 
 ContentItem = dict[str, Any]
 
+
 class ChatMessage(BaseModel):
     model_config = ConfigDict(extra='allow')
     role: str
@@ -58,9 +59,7 @@ class ChatMessage(BaseModel):
 
 def extract_text(content: str | list[ContentItem] | None) -> str:
     if isinstance(content, list):
-        return ''.join(
-            item.get('text', '') for item in content if item.get('type') == 'text'
-        )
+        return ''.join(item.get('text', '') for item in content if item.get('type') == 'text')
     return content or ''
 
 

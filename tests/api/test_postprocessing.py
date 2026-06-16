@@ -122,14 +122,18 @@ def test_make_tool_call_structure() -> None:
 def test_postprocess_nonstreaming_tool_call() -> None:
     body = {
         'id': 'test-123',
-        'choices': [{
-            'index': 0,
-            'message': {
-                'role': 'assistant',
-                'content': '```json\n{"name": "read_file", "arguments": {"path": "x.txt"}}\n```',
-            },
-            'finish_reason': 'stop',
-        }],
+        'choices': [
+            {
+                'index': 0,
+                'message': {
+                    'role': 'assistant',
+                    'content': (
+                        '```json\n{"name": "read_file", "arguments": {"path": "x.txt"}}\n```'
+                    ),
+                },
+                'finish_reason': 'stop',
+            }
+        ],
     }
     result = postprocess_nonstreaming(body, tools=_READ_FILE_TOOLS)
     msg = result['choices'][0]['message']
@@ -142,14 +146,16 @@ def test_postprocess_nonstreaming_tool_call() -> None:
 def test_postprocess_nonstreaming_no_tools_no_conversion() -> None:
     body = {
         'id': 'test',
-        'choices': [{
-            'index': 0,
-            'message': {
-                'role': 'assistant',
-                'content': '{"name": "read_file", "arguments": {"path": "x.txt"}}',
-            },
-            'finish_reason': 'stop',
-        }],
+        'choices': [
+            {
+                'index': 0,
+                'message': {
+                    'role': 'assistant',
+                    'content': '{"name": "read_file", "arguments": {"path": "x.txt"}}',
+                },
+                'finish_reason': 'stop',
+            }
+        ],
     }
     result = postprocess_nonstreaming(body)
     assert result['choices'][0]['message']['content'] is not None
@@ -160,15 +166,17 @@ def test_postprocess_nonstreaming_no_tools_no_conversion() -> None:
 def test_postprocess_nonstreaming_hallucinated_name() -> None:
     body = {
         'id': 'test',
-        'choices': [{
-            'index': 0,
-            'message': {
-                'role': 'assistant',
-                'content': '{"name": "write_file", '
-                           '"arguments": {"path": "x.txt", "content": "hello"}}',
-            },
-            'finish_reason': 'stop',
-        }],
+        'choices': [
+            {
+                'index': 0,
+                'message': {
+                    'role': 'assistant',
+                    'content': '{"name": "write_file", '
+                    '"arguments": {"path": "x.txt", "content": "hello"}}',
+                },
+                'finish_reason': 'stop',
+            }
+        ],
     }
     result = postprocess_nonstreaming(body, tools=_READ_FILE_TOOLS)
     assert result['choices'][0]['message']['content'] is not None
@@ -179,14 +187,16 @@ def test_postprocess_nonstreaming_hallucinated_name() -> None:
 def test_postprocess_nonstreaming_normal_text_pass_through() -> None:
     body = {
         'id': 'test-456',
-        'choices': [{
-            'index': 0,
-            'message': {
-                'role': 'assistant',
-                'content': 'Hello! How can I assist you?',
-            },
-            'finish_reason': 'stop',
-        }],
+        'choices': [
+            {
+                'index': 0,
+                'message': {
+                    'role': 'assistant',
+                    'content': 'Hello! How can I assist you?',
+                },
+                'finish_reason': 'stop',
+            }
+        ],
     }
     result = postprocess_nonstreaming(body)
     assert result['choices'][0]['message']['content'] == 'Hello! How can I assist you?'
@@ -202,10 +212,12 @@ def test_postprocess_nonstreaming_empty_choices() -> None:
 async def test_postprocess_streaming_tool_call() -> None:
     chunks = [
         _FIRST_SSE_CHUNK,
-        (b'data: {"choices":[{"index":0,'
-         b'"delta":{"content":"```json\\n{\\"name\\": \\"read_file\\"'
-         b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}\\n```"}'
-         b',"finish_reason":null}]}\n\n'),
+        (
+            b'data: {"choices":[{"index":0,'
+            b'"delta":{"content":"```json\\n{\\"name\\": \\"read_file\\"'
+            b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}\\n```"}'
+            b',"finish_reason":null}]}\n\n'
+        ),
         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
         b'data: [DONE]\n\n',
     ]
@@ -225,10 +237,12 @@ async def test_postprocess_streaming_tool_call() -> None:
 async def test_postprocess_streaming_no_tools_no_conversion() -> None:
     chunks = [
         _FIRST_SSE_CHUNK,
-        (b'data: {"choices":[{"index":0,'
-         b'"delta":{"content":"{\\"name\\": \\"read_file\\"'
-         b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"}'
-         b',"finish_reason":null}]}\n\n'),
+        (
+            b'data: {"choices":[{"index":0,'
+            b'"delta":{"content":"{\\"name\\": \\"read_file\\"'
+            b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"}'
+            b',"finish_reason":null}]}\n\n'
+        ),
         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
         b'data: [DONE]\n\n',
     ]
@@ -247,10 +261,12 @@ async def test_postprocess_streaming_no_tools_no_conversion() -> None:
 async def test_postprocess_streaming_hallucinated_name() -> None:
     chunks = [
         _FIRST_SSE_CHUNK,
-        (b'data: {"choices":[{"index":0,'
-         b'"delta":{"content":"{\\"name\\": \\"write_file\\"'
-         b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"}'
-         b',"finish_reason":null}]}\n\n'),
+        (
+            b'data: {"choices":[{"index":0,'
+            b'"delta":{"content":"{\\"name\\": \\"write_file\\"'
+            b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"}'
+            b',"finish_reason":null}]}\n\n'
+        ),
         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
         b'data: [DONE]\n\n',
     ]
@@ -267,17 +283,21 @@ async def test_postprocess_streaming_hallucinated_name() -> None:
 
 
 async def test_postprocess_streaming_non_sse_tool_call() -> None:
-    body = json.dumps({
-        'id': 'test',
-        'choices': [{
-            'index': 0,
-            'message': {
-                'role': 'assistant',
-                'content': '{"name": "read_file", "arguments": {"path": "x.txt"}}',
-            },
-            'finish_reason': 'stop',
-        }],
-    })
+    body = json.dumps(
+        {
+            'id': 'test',
+            'choices': [
+                {
+                    'index': 0,
+                    'message': {
+                        'role': 'assistant',
+                        'content': '{"name": "read_file", "arguments": {"path": "x.txt"}}',
+                    },
+                    'finish_reason': 'stop',
+                }
+            ],
+        }
+    )
 
     async def _raw() -> bytes:
         yield body.encode()
@@ -291,17 +311,21 @@ async def test_postprocess_streaming_non_sse_tool_call() -> None:
 
 
 async def test_postprocess_streaming_non_sse_normal_text() -> None:
-    body = json.dumps({
-        'id': 'test',
-        'choices': [{
-            'index': 0,
-            'message': {
-                'role': 'assistant',
-                'content': 'Hello! How can I help you?',
-            },
-            'finish_reason': 'stop',
-        }],
-    })
+    body = json.dumps(
+        {
+            'id': 'test',
+            'choices': [
+                {
+                    'index': 0,
+                    'message': {
+                        'role': 'assistant',
+                        'content': 'Hello! How can I help you?',
+                    },
+                    'finish_reason': 'stop',
+                }
+            ],
+        }
+    )
 
     async def _raw() -> bytes:
         yield body.encode()

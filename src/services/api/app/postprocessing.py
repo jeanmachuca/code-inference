@@ -127,7 +127,7 @@ def postprocess_nonstreaming(body: dict[str, Any], tools: Any = None) -> dict[st
 
 
 def _chunk_str(s: str, size: int = 32) -> list[str]:
-    return [s[i:i + size] for i in range(0, len(s), size)]
+    return [s[i : i + size] for i in range(0, len(s), size)]
 
 
 def _sse(data: dict[str, Any]) -> bytes:
@@ -187,7 +187,7 @@ async def postprocess_streaming(
         if not event.startswith('data: '):
             continue
 
-        json_str = event[len('data: '):]
+        json_str = event[len('data: ') :]
         try:
             data = json.loads(json_str)
         except json.JSONDecodeError:
@@ -218,49 +218,59 @@ async def postprocess_streaming(
 
     skeleton = {
         **meta,
-        'choices': [{
-            'index': 0,
-            'delta': {
-                'role': 'assistant',
-                'content': None,
-                'tool_calls': [{
-                    'index': 0,
-                    'id': tool_call['id'],
-                    'type': 'function',
-                    'function': {
-                        'name': tool_call['function']['name'],
-                        'arguments': '',
-                    },
-                }],
-            },
-            'finish_reason': None,
-        }],
+        'choices': [
+            {
+                'index': 0,
+                'delta': {
+                    'role': 'assistant',
+                    'content': None,
+                    'tool_calls': [
+                        {
+                            'index': 0,
+                            'id': tool_call['id'],
+                            'type': 'function',
+                            'function': {
+                                'name': tool_call['function']['name'],
+                                'arguments': '',
+                            },
+                        }
+                    ],
+                },
+                'finish_reason': None,
+            }
+        ],
     }
     yield _sse(skeleton)
 
     for arg_chunk in _chunk_str(args_str):
         arg_event = {
             **meta,
-            'choices': [{
-                'index': 0,
-                'delta': {
-                    'tool_calls': [{
-                        'index': 0,
-                        'function': {'arguments': arg_chunk},
-                    }],
-                },
-                'finish_reason': None,
-            }],
+            'choices': [
+                {
+                    'index': 0,
+                    'delta': {
+                        'tool_calls': [
+                            {
+                                'index': 0,
+                                'function': {'arguments': arg_chunk},
+                            }
+                        ],
+                    },
+                    'finish_reason': None,
+                }
+            ],
         }
         yield _sse(arg_event)
 
     finish = {
         **meta,
-        'choices': [{
-            'index': 0,
-            'delta': {},
-            'finish_reason': 'tool_calls',
-        }],
+        'choices': [
+            {
+                'index': 0,
+                'delta': {},
+                'finish_reason': 'tool_calls',
+            }
+        ],
     }
     yield _sse(finish)
     yield b'data: [DONE]\n\n'
