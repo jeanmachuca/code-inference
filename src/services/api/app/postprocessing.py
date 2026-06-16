@@ -14,7 +14,7 @@ How: 1. parse_tool_call detects {name, arguments} JSON in content
         and treated as normal text
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import re
