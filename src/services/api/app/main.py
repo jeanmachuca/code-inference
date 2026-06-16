@@ -15,6 +15,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.config import settings
+from app.postprocessing import postprocess_nonstreaming, postprocess_streaming
 from app.prompt import process_messages
 
 logger = logging.getLogger(__name__)
@@ -47,10 +48,20 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+ContentItem = dict[str, Any]
+
 class ChatMessage(BaseModel):
     model_config = ConfigDict(extra='allow')
     role: str
-    content: str | None = None
+    content: str | list[ContentItem] | None = None
+
+
+def extract_text(content: str | list[ContentItem] | None) -> str:
+    if isinstance(content, list):
+        return ''.join(
+            item.get('text', '') for item in content if item.get('type') == 'text'
+        )
+    return content or ''
 
 
 class ChatCompletionRequest(BaseModel):
@@ -120,6 +131,8 @@ async def chat_completions(
         )
 
     raw_messages = [m.model_dump() for m in body.messages]
+    for m in raw_messages:
+        m['content'] = extract_text(m.get('content'))
 
     pr = process_messages(
         raw_messages,
@@ -157,7 +170,7 @@ async def chat_completions(
             pr.pii_masked,
         )
         return StreamingResponse(
-            _stream_chat(forward, inf_url),
+            postprocess_streaming(_stream_chat(forward, inf_url)),
             media_type='text/event-stream',
             headers={
                 'X-Prompt-Truncated': '1' if pr.truncated else '0',
@@ -177,7 +190,7 @@ async def chat_completions(
     )
 
     try:
-        payload = inf.json()
+        payload = postprocess_nonstreaming(inf.json())
     except Exception:
         payload = {'error': inf.text[:2000]}
 
