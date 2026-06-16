@@ -27,7 +27,7 @@ services:
     profiles:
       - stack
       - inference
-    image: ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538
+    image: ghcr.io/ggml-org/llama.cpp:server
     restart: unless-stopped
     volumes:
       - model_data:/models:ro
@@ -75,6 +75,7 @@ services:
     container_name: opencode
     profiles:
       - tools
+      - stack
     build:
       context: .
       dockerfile: src/opencode-stack/Dockerfile
@@ -89,6 +90,8 @@ services:
       - GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new
     networks:
       - internal
+    depends_on:
+      - api
     volumes:
       - ${PWD}:/workspace
       - ~/.ssh:/home/opencode/.ssh:ro

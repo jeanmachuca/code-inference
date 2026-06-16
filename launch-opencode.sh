@@ -11,4 +11,4 @@ if [ "$1" = "--full-isolation" ]; then
 fi
 
 cd "$SCRIPT_DIR"
-PWD="$ORIG_PWD" docker compose $PROJECT_FLAG --profile tools run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans opencode "$@"
+PWD="$ORIG_PWD" docker compose $PROJECT_FLAG --profile stack run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans opencode "$@"
