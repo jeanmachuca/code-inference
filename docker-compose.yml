@@ -31,7 +31,6 @@ services:
     restart: unless-stopped
     volumes:
       - model_data:/models:ro
-      - project_models:/staging:ro # Your project folder mapped here
     command:
       - "-m"
       - "/models/${MODEL_FILENAME:-model.gguf}"
@@ -103,13 +102,11 @@ services:
 
 volumes:
   model_data:
-    driver: local # Managed by Docker
-  project_models:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "${PWD}/models" # Your local project models
+      device: "${PWD}/models"
   training_data:
   opencode_config:
   opencode_data:
