@@ -4,3 +4,4 @@ httpx==0.28.1
 pydantic-settings==2.7.0
 slowapi==0.1.9
 pytest==9.0.3
+pytest-asyncio==1.4.0
