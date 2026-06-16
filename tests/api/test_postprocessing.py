@@ -9,8 +9,25 @@ from app.postprocessing import (
 )
 
 _READ_FILE_TOOLS = [
-    {'type': 'function', 'function': {'name': 'read_file', 'description': 'Read a file', 'parameters': {'type': 'object', 'properties': {'path': {'type': 'string'}}, 'required': ['path']}}},
+    {
+        'type': 'function',
+        'function': {
+            'name': 'read_file',
+            'description': 'Read a file',
+            'parameters': {
+                'type': 'object',
+                'properties': {'path': {'type': 'string'}},
+                'required': ['path'],
+            },
+        },
+    },
 ]
+
+_FIRST_SSE_CHUNK = (
+    b'data: {"id":"x","created":1,"model":"m","object":"chat.completion.chunk"'
+    b',"choices":[{"index":0,"delta":{"role":"assistant"'
+    b',"content":null},"finish_reason":null}]}\n\n'
+)
 
 
 def test_parse_tool_call_markdown_json() -> None:
@@ -147,7 +164,8 @@ def test_postprocess_nonstreaming_hallucinated_name() -> None:
             'index': 0,
             'message': {
                 'role': 'assistant',
-                'content': '{"name": "write_file", "arguments": {"path": "x.txt", "content": "hello"}}',
+                'content': '{"name": "write_file", '
+                           '"arguments": {"path": "x.txt", "content": "hello"}}',
             },
             'finish_reason': 'stop',
         }],
@@ -183,8 +201,11 @@ def test_postprocess_nonstreaming_empty_choices() -> None:
 
 async def test_postprocess_streaming_tool_call() -> None:
     chunks = [
-        b'data: {"id":"x","created":1,"model":"m","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n',
-        b'data: {"choices":[{"index":0,"delta":{"content":"```json\\n{\\"name\\": \\"read_file\\", \\"arguments\\": {\\"path\\": \\"f.txt\\"}}\\n```"},"finish_reason":null}]}\n\n',
+        _FIRST_SSE_CHUNK,
+        (b'data: {"choices":[{"index":0,'
+         b'"delta":{"content":"```json\\n{\\"name\\": \\"read_file\\"'
+         b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}\\n```"}'
+         b',"finish_reason":null}]}\n\n'),
         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
         b'data: [DONE]\n\n',
     ]
@@ -203,8 +224,11 @@ async def test_postprocess_streaming_tool_call() -> None:
 
 async def test_postprocess_streaming_no_tools_no_conversion() -> None:
     chunks = [
-        b'data: {"id":"x","created":1,"model":"m","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n',
-        b'data: {"choices":[{"index":0,"delta":{"content":"{\\"name\\": \\"read_file\\", \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"},"finish_reason":null}]}\n\n',
+        _FIRST_SSE_CHUNK,
+        (b'data: {"choices":[{"index":0,'
+         b'"delta":{"content":"{\\"name\\": \\"read_file\\"'
+         b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"}'
+         b',"finish_reason":null}]}\n\n'),
         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
         b'data: [DONE]\n\n',
     ]
@@ -222,8 +246,11 @@ async def test_postprocess_streaming_no_tools_no_conversion() -> None:
 
 async def test_postprocess_streaming_hallucinated_name() -> None:
     chunks = [
-        b'data: {"id":"x","created":1,"model":"m","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n',
-        b'data: {"choices":[{"index":0,"delta":{"content":"{\\"name\\": \\"write_file\\", \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"},"finish_reason":null}]}\n\n',
+        _FIRST_SSE_CHUNK,
+        (b'data: {"choices":[{"index":0,'
+         b'"delta":{"content":"{\\"name\\": \\"write_file\\"'
+         b', \\"arguments\\": {\\"path\\": \\"f.txt\\"}}"}'
+         b',"finish_reason":null}]}\n\n'),
         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
         b'data: [DONE]\n\n',
     ]
@@ -253,7 +280,7 @@ async def test_postprocess_streaming_non_sse_tool_call() -> None:
     })
 
     async def _raw() -> bytes:
-        yield body.encode('utf-8')
+        yield body.encode()
 
     results = [line async for line in postprocess_streaming(_raw(), tools=_READ_FILE_TOOLS)]
     output = b''.join(results).decode('utf-8')
@@ -277,7 +304,7 @@ async def test_postprocess_streaming_non_sse_normal_text() -> None:
     })
 
     async def _raw() -> bytes:
-        yield body.encode('utf-8')
+        yield body.encode()
 
     results = [line async for line in postprocess_streaming(_raw())]
     output = b''.join(results).decode('utf-8')
@@ -288,7 +315,7 @@ async def test_postprocess_streaming_non_sse_normal_text() -> None:
 
 async def test_postprocess_streaming_normal_text() -> None:
     chunks = [
-        b'data: {"id":"x","created":1,"model":"m","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n',
+        _FIRST_SSE_CHUNK,
         b'data: {"choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}\n\n',
         b'data: {"choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}\n\n',
         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',

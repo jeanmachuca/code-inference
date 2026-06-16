@@ -19,7 +19,8 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 
 _MD_FENCE_RE = re.compile(
@@ -49,7 +50,7 @@ def parse_tool_call(content: str) -> dict[str, Any] | None:
     arguments = obj.get('arguments')
     if not isinstance(name, str) or not name:
         return None
-    if not isinstance(arguments, (dict, str)) or not arguments:
+    if not isinstance(arguments, dict | str) or not arguments:
         return None
 
     return {'name': name, 'arguments': arguments}
@@ -130,7 +131,7 @@ def _chunk_str(s: str, size: int = 32) -> list[str]:
 
 
 def _sse(data: dict[str, Any]) -> bytes:
-    return f'data: {json.dumps(data, ensure_ascii=False)}\n\n'.encode('utf-8')
+    return f'data: {json.dumps(data, ensure_ascii=False)}\n\n'.encode()
 
 
 def _infer_is_sse(raw_text: str) -> bool:
