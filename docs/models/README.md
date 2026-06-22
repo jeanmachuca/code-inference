@@ -79,7 +79,9 @@ Our default model is **Qwen 2.5 Coder 3B Q4_K_M** (~3B parameters, heavily quant
 | DeepSeek Coder 6.7B | 6.7B | ~4 GB | 8 GB (16 GB comfortable) | macOS (M1+), Linux, Windows | 🟢 Good |
 | Llama 3.1 8B | 8B | ~4.5 GB | 8 GB (16 GB comfortable) | macOS (M1+), Linux, Windows | 🟢 Good |
 
-> **Apple Silicon note:** llama.cpp uses Metal GPU acceleration on macOS. M-series chips with unified memory are ideal — RAM is shared between CPU/GPU so model memory counts once. An M1 with 16 GB runs 7B models comfortably. Intel Macs without Metal acceleration fall back to CPU-only, which is significantly slower.
+> **Apple Silicon note:** llama.cpp uses Metal GPU acceleration on macOS. M-series chips with unified memory are ideal — RAM is shared between CPU/GPU so model memory counts once. An M1 with 16 GB runs 7B models comfortably.
+
+> **Intel Mac note:** Intel Macs lack Metal GPU acceleration for llama.cpp, falling back to CPU-only inference. This is significantly slower — expect 1–2 tok/s on 7B models vs 15–25 tok/s on M1. Stick with 3B models for usable speeds, or consider switching to an M-series machine.
 
 ### Size guidelines
 
