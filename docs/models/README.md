@@ -83,6 +83,23 @@ Our default model is **Qwen 2.5 Coder 3B Q4_K_M** (~3B parameters, heavily quant
 
 > **Intel Mac note:** Intel Macs lack Metal GPU acceleration for llama.cpp, falling back to CPU-only inference. This is significantly slower — expect 1–2 tok/s on 7B models vs 15–25 tok/s on M1. Stick with 3B models for usable speeds, or consider switching to an M-series machine.
 
+### Expected performance by platform
+
+Tokens per second (tok/s) for Q4_K_M quant at 2048 context, single user. Results vary with batch size, prompt length, and system load.
+
+| Platform | LLM backend | 3B model | 7B model | 14B model | Verdict |
+|----------|-------------|----------|----------|-----------|---------|
+| Apple Silicon M1 8 GB | Metal GPU | 25–30 tok/s | 10–15 tok/s | ❌ OOM | Great for 3B, usable for 7B |
+| Apple Silicon M1 16 GB | Metal GPU | 30–35 tok/s | 15–20 tok/s | 5–8 tok/s | Sweet spot for 7B |
+| Apple Silicon M1 Pro/Max/Ultra | Metal GPU | 40–50 tok/s | 20–30 tok/s | 10–15 tok/s | Best Apple option |
+| Apple Silicon M4 24 GB+ | Metal GPU | 50–60 tok/s | 30–40 tok/s | 15–20 tok/s | Best Apple option |
+| Intel Mac (any) | CPU (no Metal) | 5–10 tok/s | 1–3 tok/s | ❌ too slow | Not recommended |
+| Linux x86_64 (CPU, AVX2) | CPU (OpenBLAS) | 10–15 tok/s | 3–5 tok/s | ❌ too slow | Usable only for 3B |
+| Linux + NVIDIA RTX 3060+ | cuBLAS GPU | 40–60 tok/s | 25–40 tok/s | 10–15 tok/s | Great value |
+| Linux + NVIDIA RTX 4090 | cuBLAS GPU | 80–100 tok/s | 50–70 tok/s | 25–35 tok/s | Production-ready |
+| Windows + NVIDIA (CUDA) | cuBLAS GPU | 40–60 tok/s | 25–40 tok/s | 10–15 tok/s | Great for 7B |
+| Windows (CPU only) | CPU (AVX2) | 10–15 tok/s | 3–5 tok/s | ❌ too slow | Not recommended |
+
 ### Size guidelines
 
 | Model size | Tool calling reliability | Recommended for |
