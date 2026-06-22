@@ -61,9 +61,25 @@ curl -L "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/
 
 curl -L https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf -o ./models/qwen2.5-coder-3b-instruct-q4_k_m.gguf
 
-## Tool calling and model size
+## Tool calling
 
-Small local models (≤3B parameters) **hallucinate tool calls** — they output `{"name":"read_file","arguments":{}}` even for simple chat like "hello" when tool definitions are present. This is a known limitation of small models, not a configuration issue.
+### The bottleneck is the model
+
+Tool calling reliability depends on **model size**, not configuration. Small models (≤3B) don't have enough capacity to understand *when* to use tools vs *when* to chat. They see tool definitions and try to use them for everything — including "hello."
+
+Our default model is **Qwen 2.5 Coder 3B Q4_K_M** (~3B parameters, heavily quantized). It produces hallucinated tool calls like `{"name":"read_file","arguments":{...}}` on simple chat when tool definitions are present. This is **expected behavior** for a model this size, not a configuration or server issue.
+
+### Model comparison
+
+| Model | Size | Tool calling |
+|-------|------|-------------|
+| Qwen 2.5 Coder 3B | 3B | 🟡 Unreliable, hallucinates often |
+| Qwen 2.5 Coder 7B | 7B | 🟢 Good |
+| Qwen 2.5 Coder 14B | 14B | 🟢 Great |
+| DeepSeek Coder 6.7B | 6.7B | 🟢 Good |
+| Llama 3.1 8B | 8B | 🟢 Good |
+
+### Size guidelines
 
 | Model size | Tool calling reliability | Recommended for |
 |------------|------------------------|----------------|
@@ -71,7 +87,9 @@ Small local models (≤3B parameters) **hallucinate tool calls** — they output
 | 7B | 🟢 Good with occasional misses | Light tool use, dev work |
 | 14B+ | 🟢 Reliable | Production tool calling |
 
-### Architecture: how tools flow
+What YouTubers run: almost always 7B+ models on multi-GPU setups or cloud instances. A "laptop demo" of tool calling typically uses a 7B model at Q4, or a smaller model that happens to handle the demo's specific use case.
+
+### Architecture: how tools flow through the stack
 
 ```
 opencode CLI                    API                          llama.cpp
@@ -89,7 +107,7 @@ opencode CLI                    API                          llama.cpp
 - **opencode CLI** sends `tools` in requests → `--tools all` enables llama.cpp to process them → the model outputs tool call JSON → the API post-processor converts raw JSON to OpenAI `tool_calls` format
 - **Web UI** does **not** send `tools` → the model sees no tool definitions → responds naturally without hallucination
 
-The web UI intentionally omits `tools` from requests because small models hallucinate tool calls when they see tool definitions, and web UI cannot execute filesystem tools anyway.
+The web UI intentionally omits `tools` from requests because small models hallucinate when they see tool definitions, and web UI cannot execute filesystem tools anyway.
 
 ### Backend portability
 
@@ -97,5 +115,16 @@ The `--tools all` flag is **llama.cpp-specific**. If swapping to ollama or vLLM:
 - Remove `--tools all` from the inference service command
 - The API's `postprocessing.py` handles tool call conversion uniformly regardless of backend
 - The API's `prompt.py` would need tool-injection logic if the new backend doesn't process `tools` natively
+
+### Real fix for better tool calling: upgrade the model
+
+Download a 7B GGUF from Hugging Face:
+
+```bash
+curl -L -o ./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf \
+  https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+```
+
+Then set `MODEL_FILENAME=qwen2.5-coder-7b-instruct-q4_k_m.gguf` in `.env` and restart.
 
 See `docs/settings.md` for the full post-processing reference.
