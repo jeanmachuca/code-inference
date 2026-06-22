@@ -60,3 +60,42 @@ curl -L "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/
 ```
 
 curl -L https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf -o ./models/qwen2.5-coder-3b-instruct-q4_k_m.gguf
+
+## Tool calling and model size
+
+Small local models (≤3B parameters) **hallucinate tool calls** — they output `{"name":"read_file","arguments":{}}` even for simple chat like "hello" when tool definitions are present. This is a known limitation of small models, not a configuration issue.
+
+| Model size | Tool calling reliability | Recommended for |
+|------------|------------------------|----------------|
+| 1B–3B | 🟡 Unreliable, hallucinates often | Chat-only, no tools needed |
+| 7B | 🟢 Good with occasional misses | Light tool use, dev work |
+| 14B+ | 🟢 Reliable | Production tool calling |
+
+### Architecture: how tools flow
+
+```
+opencode CLI                    API                          llama.cpp
+  │                             │                             │
+  │ POST with tools=[…]         │                             │
+  │────────────────────────────►│                             │
+  │                             │────────────────────────────►│  --tools all
+  │                             │   forwards tools + messages │  processes tools
+  │                             │                             │  via Jinja template
+  │◄────────────────────────────│◄────────────────────────────│
+  │   tool_calls (converted)    │   raw JSON in content       │
+  │                             │   post-processor converts   │
+```
+
+- **opencode CLI** sends `tools` in requests → `--tools all` enables llama.cpp to process them → the model outputs tool call JSON → the API post-processor converts raw JSON to OpenAI `tool_calls` format
+- **Web UI** does **not** send `tools` → the model sees no tool definitions → responds naturally without hallucination
+
+The web UI intentionally omits `tools` from requests because small models hallucinate tool calls when they see tool definitions, and web UI cannot execute filesystem tools anyway.
+
+### Backend portability
+
+The `--tools all` flag is **llama.cpp-specific**. If swapping to ollama or vLLM:
+- Remove `--tools all` from the inference service command
+- The API's `postprocessing.py` handles tool call conversion uniformly regardless of backend
+- The API's `prompt.py` would need tool-injection logic if the new backend doesn't process `tools` natively
+
+See `docs/settings.md` for the full post-processing reference.
