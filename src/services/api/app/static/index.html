@@ -75,6 +75,15 @@ body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMac
   var toast = document.getElementById('toast');
   var loading = false;
 
+  var TOOLS = [
+    { type: 'function', function: { name: 'read_file', description: 'Read a file from the workspace', parameters: { type: 'object', properties: { path: { type: 'string', description: 'File path' } }, required: ['path'] } } },
+    { type: 'function', function: { name: 'write_file', description: 'Write content to a file', parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] } } },
+    { type: 'function', function: { name: 'edit', description: 'Edit a file by replacing text', parameters: { type: 'object', properties: { filePath: { type: 'string' }, oldString: { type: 'string' }, newString: { type: 'string' } }, required: ['filePath', 'oldString', 'newString'] } } },
+    { type: 'function', function: { name: 'grep_search', description: 'Search files for a pattern', parameters: { type: 'object', properties: { pattern: { type: 'string' }, path: { type: 'string' } }, required: ['pattern', 'path'] } } },
+    { type: 'function', function: { name: 'glob', description: 'Find files matching a glob pattern', parameters: { type: 'object', properties: { pattern: { type: 'string' } }, required: ['pattern'] } } },
+    { type: 'function', function: { name: 'bash', description: 'Run a shell command', parameters: { type: 'object', properties: { command: { type: 'string', description: 'Command to execute' } }, required: ['command'] } } },
+  ];
+
   function scrollBottom() { msgEl.scrollTop = msgEl.scrollHeight; }
 
   function esc(s) {
@@ -112,7 +121,7 @@ body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMac
           card2.className = 'tool-card';
           var astr;
           try { astr = typeof tc.function.arguments === 'string' ? JSON.stringify(JSON.parse(tc.function.arguments), null, 2) : JSON.stringify(tc.function.arguments, null, 2); } catch (e) { astr = tc.function.arguments; }
-          card2.innerHTML = '<div class="tool-name">\u2692 ' + esc(tc.function.name) + '</div><div class="tool-args">' + esc(astr) + '</div>';
+          card2.innerHTML = '<div class="tool-name">\u2692 ' + esc(tc.function.name) + '</div><div class="tool-args">' + esc(astr) + '</div><div style="margin-top:6px;font-size:11px;color:#ffa726;">\u26A0 Tool not executed in web UI</div>';
           msgEl.appendChild(card2);
         }
         continue;
@@ -146,35 +155,36 @@ body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMac
   function setBadges(opts) {
     var t = opts.truncated;
     var p = opts.pii_masked;
-    truncBadge.textContent = 'truncated: ' + (t === '—' ? t : t);
+    truncBadge.textContent = 'truncated: ' + t;
     truncBadge.className = 'badge' + (t === '1' || t === true ? ' active' : '');
-    piiBadge.textContent = 'pii_masked: ' + (p === '—' ? p : p);
+    piiBadge.textContent = 'pii_masked: ' + p;
     piiBadge.className = 'badge' + (p === '1' || p === true ? ' active' : '');
   }
 
-  async function send() {
-    var text = input.value.trim();
-    if (!text || loading) return;
-    input.value = '';
-    loading = true;
-    sendBtn.disabled = true;
+  function unlockUI() {
+    loading = false;
+    sendBtn.disabled = false;
+    input.focus();
+  }
 
+  async function chat(text, noTools) {
     addMessage('user', text);
     render();
     showTyping();
-    setBadges({ truncated: '—', pii_masked: '—' });
+    setBadges({ truncated: '\u2014', pii_masked: '\u2014' });
 
     var payload = {
       model: 'local',
       messages: messages.map(function (m) { return { role: m.role, content: m.content }; }),
-      stream: true
+      stream: true,
     };
+    if (!noTools) payload.tools = TOOLS;
 
     try {
       var res = await fetch('/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       hideTyping();
 
@@ -183,31 +193,31 @@ body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMac
         try { errBody = await res.json(); } catch (e) { errBody = { error: res.statusText }; }
         addMessage('assistant', 'Error: ' + (errBody.error || res.status) + ' ' + res.statusText);
         render();
-        loading = false;
-        sendBtn.disabled = false;
+        unlockUI();
         return;
       }
 
       setBadges({
-        truncated: res.headers.get('X-Prompt-Truncated') || '—',
-        pii_masked: res.headers.get('X-Prompt-Pii-Masked') || '—'
+        truncated: res.headers.get('X-Prompt-Truncated') || '\u2014',
+        pii_masked: res.headers.get('X-Prompt-Pii-Masked') || '\u2014',
       });
 
       var reader = res.body.getReader();
       var decoder = new TextDecoder();
       var assistantContent = '';
       var assistantToolCalls = null;
+      var finishReason = null;
       addMessage('assistant', '');
       render();
 
       var buffer = '';
-      var done = false;
+      var streamDone = false;
 
-      while (!done) {
+      while (!streamDone) {
         var result = await reader.read();
-        done = result.done;
+        streamDone = result.done;
         if (result.value) {
-          buffer += decoder.decode(result.value, { stream: !done });
+          buffer += decoder.decode(result.value, { stream: !streamDone });
           var parts = buffer.split('\n\n');
           buffer = parts.pop() || '';
 
@@ -220,19 +230,19 @@ body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMac
               var data = JSON.parse(line.slice(6));
               var choices = data.choices || [];
               if (!choices.length) continue;
-              var delta = choices[0].delta || {};
-              var finishReason = choices[0].finish_reason;
+              var d = choices[0].delta || {};
+              if (choices[0].finish_reason) finishReason = choices[0].finish_reason;
 
-              if (delta.content) {
-                assistantContent += delta.content;
+              if (d.content) {
+                assistantContent += d.content;
                 messages[messages.length - 1].content = assistantContent;
                 render();
               }
 
-              if (delta.tool_calls) {
+              if (d.tool_calls) {
                 if (!assistantToolCalls) assistantToolCalls = [];
-                for (var t = 0; t < delta.tool_calls.length; t++) {
-                  var tc = delta.tool_calls[t];
+                for (var t = 0; t < d.tool_calls.length; t++) {
+                  var tc = d.tool_calls[t];
                   var idx = tc.index || 0;
                   if (!assistantToolCalls[idx]) {
                     assistantToolCalls[idx] = { id: tc.id, type: 'function', function: { name: '', arguments: '' } };
@@ -244,17 +254,12 @@ body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMac
                   }
                 }
               }
-
-              if (finishReason === 'tool_calls' && assistantToolCalls) {
-                messages[messages.length - 1].tool_calls = assistantToolCalls;
-                messages[messages.length - 1].content = assistantContent || null;
-                render();
-              }
             } catch (e) {}
           }
         }
       }
 
+      // Process remaining buffer
       if (buffer.trim()) {
         var lastLine = buffer.trim();
         if (lastLine.indexOf('data: ') === 0 && lastLine !== 'data: [DONE]') {
@@ -264,14 +269,29 @@ body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMac
             if (c2.length && c2[0].delta && c2[0].delta.content) {
               assistantContent += c2[0].delta.content;
               messages[messages.length - 1].content = assistantContent;
+              if (c2[0].finish_reason) finishReason = c2[0].finish_reason;
               render();
             }
           } catch (e) {}
         }
       }
 
-      var last = messages[messages.length - 1];
-      if (last.role === 'assistant' && !last.content && !last.tool_calls) {
+      var lastMsg = messages[messages.length - 1];
+
+      // Tool call intercepted — auto-follow-up without tools
+      if (finishReason === 'tool_calls' && assistantToolCalls && !noTools) {
+        lastMsg.tool_calls = assistantToolCalls;
+        lastMsg.content = assistantContent || null;
+        render();
+        chat(
+          '(Tool execution is not available in this web chat interface. Continue with text only.)',
+          true,
+        );
+        return;
+      }
+
+      // Clean up empty assistant message
+      if (lastMsg.role === 'assistant' && !lastMsg.content && !lastMsg.tool_calls) {
         messages.pop();
         render();
       }
@@ -283,9 +303,16 @@ body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMac
       showToast('Connection failed. Is the API running?');
     }
 
-    loading = false;
-    sendBtn.disabled = false;
-    input.focus();
+    unlockUI();
+  }
+
+  function send() {
+    var text = input.value.trim();
+    if (!text || loading) return;
+    input.value = '';
+    loading = true;
+    sendBtn.disabled = true;
+    chat(text, false);
   }
 
   sendBtn.addEventListener('click', send);
