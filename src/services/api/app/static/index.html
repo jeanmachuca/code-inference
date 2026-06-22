@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>code-inference</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+
+.header { padding: 12px 20px; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.header h1 { font-size: 16px; font-weight: 600; }
+.status { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #1a4a1a; color: #4caf50; }
+
+.messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.msg { max-width: 80%; padding: 10px 14px; border-radius: 8px; line-height: 1.5; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; }
+.msg.user { align-self: flex-end; background: #1a3a1a; border: 1px solid #2a5a2a; }
+.msg.assistant { align-self: flex-start; background: #1a1a3a; border: 1px solid #2a2a5a; }
+.msg.system { align-self: center; background: #2a2a2a; border: 1px solid #3a3a3a; font-style: italic; color: #999; font-size: 12px; }
+
+.tool-card { align-self: flex-start; background: #1e1e1e; border: 1px solid #3a3a3a; border-radius: 8px; padding: 10px 14px; font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Menlo', monospace; font-size: 13px; max-width: 80%; }
+.tool-card .tool-name { color: #64b5f6; font-weight: 600; margin-bottom: 4px; }
+.tool-card .tool-args { color: #b0bec5; white-space: pre-wrap; }
+
+.meta-bar { padding: 6px 20px; border-top: 1px solid #2a2a2a; display: flex; gap: 12px; font-size: 11px; color: #666; flex-shrink: 0; }
+.badge { padding: 1px 6px; border-radius: 4px; background: #2a2a2a; }
+.badge.active { background: #3a2a00; color: #ffa726; }
+
+.input-area { padding: 12px 20px; border-top: 1px solid #2a2a2a; display: flex; gap: 8px; flex-shrink: 0; }
+.input-area textarea { flex: 1; background: #1e1e1e; border: 1px solid #3a3a3a; border-radius: 8px; color: #e0e0e0; padding: 10px; font-family: inherit; font-size: 14px; resize: none; outline: none; }
+.input-area textarea:focus { border-color: #5a5a5a; }
+.input-area button { background: #1976d2; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 600; }
+.input-area button:hover { background: #1565c0; }
+.input-area button:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+.typing { align-self: flex-start; padding: 10px 14px; display: flex; gap: 4px; }
+.typing span { width: 6px; height: 6px; background: #666; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out; }
+.typing span:nth-child(2) { animation-delay: 0.16s; }
+.typing span:nth-child(3) { animation-delay: 0.32s; }
+@keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+.toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #4a1a1a; color: #f44336; padding: 10px 20px; border-radius: 8px; font-size: 13px; border: 1px solid #6a2a2a; display: none; z-index: 100; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>code-inference</h1>
+  <span class="status" id="status">● connected</span>
+</div>
+
+<div class="messages" id="messages"></div>
+
+<div class="meta-bar" id="metaBar">
+  <span class="badge" id="truncBadge">truncated: —</span>
+  <span class="badge" id="piiBadge">pii_masked: —</span>
+</div>
+
+<div class="input-area">
+  <textarea id="input" rows="2" placeholder="Type a message..."></textarea>
+  <button id="sendBtn">Send</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var messages = [];
+  var msgEl = document.getElementById('messages');
+  var input = document.getElementById('input');
+  var sendBtn = document.getElementById('sendBtn');
+  var truncBadge = document.getElementById('truncBadge');
+  var piiBadge = document.getElementById('piiBadge');
+  var toast = document.getElementById('toast');
+  var loading = false;
+
+  function scrollBottom() { msgEl.scrollTop = msgEl.scrollHeight; }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function addMessage(role, content, extra) {
+    var m = { role: role, content: content };
+    if (extra) for (var k in extra) m[k] = extra[k];
+    messages.push(m);
+  }
+
+  function render() {
+    msgEl.innerHTML = '';
+    for (var i = 0; i < messages.length; i++) {
+      var m = messages[i];
+      if (m._tool_call) {
+        var card = document.createElement('div');
+        card.className = 'tool-card';
+        var args = typeof m._tool_call.arguments === 'string' ? m._tool_call.arguments : JSON.stringify(m._tool_call.arguments, null, 2);
+        card.innerHTML = '<div class="tool-name">\u2692 ' + esc(m._tool_call.name) + '</div><div class="tool-args">' + esc(args) + '</div>';
+        msgEl.appendChild(card);
+        continue;
+      }
+      var el = document.createElement('div');
+      el.className = 'msg ' + m.role;
+      if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length) {
+        el.textContent = m.content || '';
+        msgEl.appendChild(el);
+        for (var j = 0; j < m.tool_calls.length; j++) {
+          var tc = m.tool_calls[j];
+          var card2 = document.createElement('div');
+          card2.className = 'tool-card';
+          var astr;
+          try { astr = typeof tc.function.arguments === 'string' ? JSON.stringify(JSON.parse(tc.function.arguments), null, 2) : JSON.stringify(tc.function.arguments, null, 2); } catch (e) { astr = tc.function.arguments; }
+          card2.innerHTML = '<div class="tool-name">\u2692 ' + esc(tc.function.name) + '</div><div class="tool-args">' + esc(astr) + '</div>';
+          msgEl.appendChild(card2);
+        }
+        continue;
+      }
+      el.textContent = m.content || '';
+      msgEl.appendChild(el);
+    }
+    scrollBottom();
+  }
+
+  function showTyping() {
+    var el = document.createElement('div');
+    el.className = 'typing';
+    el.id = 'typingEl';
+    el.innerHTML = '<span></span><span></span><span></span>';
+    msgEl.appendChild(el);
+    scrollBottom();
+  }
+
+  function hideTyping() {
+    var el = document.getElementById('typingEl');
+    if (el) el.remove();
+  }
+
+  function showToast(msg, dur) {
+    toast.textContent = msg;
+    toast.style.display = 'block';
+    setTimeout(function () { toast.style.display = 'none'; }, dur || 3000);
+  }
+
+  function setBadges(opts) {
+    var t = opts.truncated;
+    var p = opts.pii_masked;
+    truncBadge.textContent = 'truncated: ' + (t === '—' ? t : t);
+    truncBadge.className = 'badge' + (t === '1' || t === true ? ' active' : '');
+    piiBadge.textContent = 'pii_masked: ' + (p === '—' ? p : p);
+    piiBadge.className = 'badge' + (p === '1' || p === true ? ' active' : '');
+  }
+
+  async function send() {
+    var text = input.value.trim();
+    if (!text || loading) return;
+    input.value = '';
+    loading = true;
+    sendBtn.disabled = true;
+
+    addMessage('user', text);
+    render();
+    showTyping();
+    setBadges({ truncated: '—', pii_masked: '—' });
+
+    var payload = {
+      model: 'local',
+      messages: messages.map(function (m) { return { role: m.role, content: m.content }; }),
+      stream: true
+    };
+
+    try {
+      var res = await fetch('/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      hideTyping();
+
+      if (!res.ok) {
+        var errBody;
+        try { errBody = await res.json(); } catch (e) { errBody = { error: res.statusText }; }
+        addMessage('assistant', 'Error: ' + (errBody.error || res.status) + ' ' + res.statusText);
+        render();
+        loading = false;
+        sendBtn.disabled = false;
+        return;
+      }
+
+      setBadges({
+        truncated: res.headers.get('X-Prompt-Truncated') || '—',
+        pii_masked: res.headers.get('X-Prompt-Pii-Masked') || '—'
+      });
+
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var assistantContent = '';
+      var assistantToolCalls = null;
+      addMessage('assistant', '');
+      render();
+
+      var buffer = '';
+      var done = false;
+
+      while (!done) {
+        var result = await reader.read();
+        done = result.done;
+        if (result.value) {
+          buffer += decoder.decode(result.value, { stream: !done });
+          var parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+
+          for (var k = 0; k < parts.length; k++) {
+            var line = parts[k].trim();
+            if (!line || line === 'data: [DONE]') continue;
+            if (line.indexOf('data: ') !== 0) continue;
+
+            try {
+              var data = JSON.parse(line.slice(6));
+              var choices = data.choices || [];
+              if (!choices.length) continue;
+              var delta = choices[0].delta || {};
+              var finishReason = choices[0].finish_reason;
+
+              if (delta.content) {
+                assistantContent += delta.content;
+                messages[messages.length - 1].content = assistantContent;
+                render();
+              }
+
+              if (delta.tool_calls) {
+                if (!assistantToolCalls) assistantToolCalls = [];
+                for (var t = 0; t < delta.tool_calls.length; t++) {
+                  var tc = delta.tool_calls[t];
+                  var idx = tc.index || 0;
+                  if (!assistantToolCalls[idx]) {
+                    assistantToolCalls[idx] = { id: tc.id, type: 'function', function: { name: '', arguments: '' } };
+                  }
+                  if (tc.id) assistantToolCalls[idx].id = tc.id;
+                  if (tc.function) {
+                    if (tc.function.name) assistantToolCalls[idx].function.name += tc.function.name;
+                    if (tc.function.arguments) assistantToolCalls[idx].function.arguments += tc.function.arguments;
+                  }
+                }
+              }
+
+              if (finishReason === 'tool_calls' && assistantToolCalls) {
+                messages[messages.length - 1].tool_calls = assistantToolCalls;
+                messages[messages.length - 1].content = assistantContent || null;
+                render();
+              }
+            } catch (e) {}
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        var lastLine = buffer.trim();
+        if (lastLine.indexOf('data: ') === 0 && lastLine !== 'data: [DONE]') {
+          try {
+            var data2 = JSON.parse(lastLine.slice(6));
+            var c2 = data2.choices || [];
+            if (c2.length && c2[0].delta && c2[0].delta.content) {
+              assistantContent += c2[0].delta.content;
+              messages[messages.length - 1].content = assistantContent;
+              render();
+            }
+          } catch (e) {}
+        }
+      }
+
+      var last = messages[messages.length - 1];
+      if (last.role === 'assistant' && !last.content && !last.tool_calls) {
+        messages.pop();
+        render();
+      }
+
+    } catch (e) {
+      hideTyping();
+      addMessage('assistant', 'Network error: ' + e.message);
+      render();
+      showToast('Connection failed. Is the API running?');
+    }
+
+    loading = false;
+    sendBtn.disabled = false;
+    input.focus();
+  }
+
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  addMessage('system', 'Connected to code-inference local AI. Type a message to start.');
+  render();
+  input.focus();
+})();
+</script>
+</body>
+</html>

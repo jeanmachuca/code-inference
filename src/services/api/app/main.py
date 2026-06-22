@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -204,6 +204,11 @@ async def chat_completions(
             'X-Prompt-Pii-Masked': '1' if pr.pii_masked else '0',
         },
     )
+
+
+@app.get('/')
+async def web_ui():
+    return FileResponse('app/static/index.html')
 
 
 async def _stream_chat(forward: dict[str, Any], url: str):
