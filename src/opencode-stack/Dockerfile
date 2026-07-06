@@ -47,7 +47,8 @@ RUN apk --update --no-cache add \
     # --- Rust Dependencies ---
     rust \
     cargo \
-    build-base
+    build-base \
+    shellcheck
 
 # Copy dev requirements before installing
 COPY dev-requirements.txt /tmp/dev-requirements.txt
