@@ -11,6 +11,12 @@ FROM ghcr.io/anomalyco/opencode
 
 # Git + SSH are needed by opencode's git-aware features (push, pull)
 # Dev dependencies for linting/formatting (pre-commit, ruff, mypy)
+# Set environment variables to force Playwright to use Alpine's native Chromium
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Git + SSH are needed by opencode's git-aware features (push, pull)
+# Dev dependencies for linting/formatting (pre-commit, ruff, mypy)
 RUN apk --update --no-cache add \
     git \
     openssh \
@@ -25,7 +31,29 @@ RUN apk --update --no-cache add \
     github-cli \
     git-lfs \
     glab \
-    chromium
+    go \
+    curl \
+    ca-certificates \
+    gnupg \
+    docker-cli \
+    docker-cli-compose \
+    # --- Playwright System Dependencies ---
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
+    font-noto-emoji \
+    # --- Rust Dependencies ---
+    rust \
+    cargo \
+    build-base
+
+# Initialize git, install Python dependencies, and set up pre-commit
+# (Ensure dev-requirements.txt is COPY'd into the image before this step)
+RUN git init && \
+    pip install --no-cache-dir --break-system-packages -r dev-requirements.txt playwright && \
+    pre-commit install
 
 # Create non-root user for running opencode
 RUN addgroup -S opencode && adduser -S -h /home/opencode -G opencode opencode
