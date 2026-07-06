@@ -49,10 +49,12 @@ RUN apk --update --no-cache add \
     cargo \
     build-base
 
+# Copy dev requirements before installing
+COPY dev-requirements.txt /tmp/dev-requirements.txt
+
 # Initialize git, install Python dependencies, and set up pre-commit
-# (Ensure dev-requirements.txt is COPY'd into the image before this step)
 RUN git init && \
-    pip install --no-cache-dir --break-system-packages -r dev-requirements.txt playwright && \
+    pip install --no-cache-dir --break-system-packages -r /tmp/dev-requirements.txt && \
     pre-commit install
 
 # Create non-root user for running opencode
