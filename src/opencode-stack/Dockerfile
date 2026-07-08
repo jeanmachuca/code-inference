@@ -48,7 +48,13 @@ RUN apk --update --no-cache add \
     rust \
     cargo \
     build-base \
-    shellcheck
+    shellcheck \
+    make \
+    gcc \
+    musl-dev \
+    linux-headers \
+    cmake \
+    build-base
 
 # Copy dev requirements before installing
 COPY dev-requirements.txt /tmp/dev-requirements.txt
