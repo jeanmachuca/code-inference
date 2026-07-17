@@ -8,7 +8,7 @@ cd "$SCRIPT_DIR"
 
 if [ "$1" = "--full-isolation" ]; then
   shift
-  PWD="$ORIG_PWD" exec docker compose -f docker-compose-notools.yml -p "$NAME_SUFFIX" --profile stack run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans opencode "$@"
+  PWD="$ORIG_PWD" NAME_SUFFIX="$NAME_SUFFIX" exec docker compose -f docker-compose-notools.yml -p "$NAME_SUFFIX" --profile stack run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans opencode "$@"
 else
   PWD="$ORIG_PWD" exec docker compose -f docker-compose-notools.yml --profile stack run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans opencode "$@"
 fi
