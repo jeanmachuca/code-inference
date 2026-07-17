@@ -23,7 +23,7 @@ services:
 
 
   inference:
-    container_name: llama-inference
+    container_name: "llama-inference-${NAME_SUFFIX:-common}"
     profiles:
       - stack
       - inference
@@ -51,7 +51,7 @@ services:
       - internal
 
   api:
-    container_name: llama-api
+    container_name: "llama-api-${NAME_SUFFIX:-common}"
     profiles:
       - stack
     build:
