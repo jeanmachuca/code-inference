@@ -76,7 +76,7 @@ case "${1:-}" in
     exec "$SCRIPT_DIR/launch-fresh-opencode.sh" "$@"
     ;;
   --full-isolation)
-    exec "$SCRIPT_DIR/launch-opencode.sh" --full-isolation
+    exec "$SCRIPT_DIR/launch-opencode.sh" --full-isolation "$@"
     ;;
   --help|-h)
     echo "Usage: code-inference [--fresh|--full-isolation] [-- opencode-args]"
