@@ -76,6 +76,7 @@ case "${1:-}" in
     exec "$SCRIPT_DIR/launch-fresh-opencode.sh" "$@"
     ;;
   --full-isolation)
+    shift
     exec "$SCRIPT_DIR/launch-opencode.sh" --full-isolation "$@"
     ;;
   --help|-h)
@@ -84,6 +85,7 @@ case "${1:-}" in
     echo "Options:"
     echo "  --fresh              Run opencode standalone (no inference stack, persistent named volumes)"
     echo "  --full-isolation     Run opencode via compose with scoped project name (inference, ephemeral)"
+    echo "    --disk-name NAME   Use external disk for volumes (default: EXT1TB)"
     ;;
   *)
     exec "$SCRIPT_DIR/launch-opencode.sh" "$@"
