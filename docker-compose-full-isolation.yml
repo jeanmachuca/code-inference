@@ -107,40 +107,41 @@ volumes:
       type: none
       o: bind
       device: "${PWD}/models"
+
   training_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/training_data"
+      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/${NAME_SUFFIX:-common}_training_data"
 
   opencode_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/opencode_config"
+      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/${NAME_SUFFIX:-common}_opencode_config"
 
   opencode_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/opencode_data"
+      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/${NAME_SUFFIX:-common}_opencode_data"
 
   opencode_state:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/opencode_state"
+      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/${NAME_SUFFIX:-common}_opencode_state"
 
   opencode_cache:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/opencode_cache"
+      device: "/Volumes/${DISK_NAME:-EXT1TB}/docker_data/${NAME_SUFFIX:-common}_opencode_cache"
 
 networks:
   internal:
