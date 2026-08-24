@@ -48,8 +48,8 @@ services:
     networks:
       - internal
 
-  inference-llama-cpp:
-    container_name: "llama-cpp-inference-${NAME_SUFFIX:-common}"
+  inference-hf:
+    container_name: "llama-hf-inference-${NAME_SUFFIX:-common}"
     profiles:
       - stack
       - inference
@@ -90,6 +90,7 @@ services:
       MAX_PROMPT_CHARS: ${MAX_PROMPT_CHARS:-8000}
     depends_on:
       - inference
+      - inference-hf
     networks:
       - internal
     volumes:

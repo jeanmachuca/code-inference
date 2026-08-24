@@ -50,7 +50,7 @@ services:
 
 
   inference-hf:
-    container_name: "llama-cpp-inference-${NAME_SUFFIX:-common}"
+    container_name: "llama-hf-inference-${NAME_SUFFIX:-common}"
     profiles:
       - stack
       - inference
