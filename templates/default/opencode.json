@@ -35,7 +35,20 @@
           }
         }
       }
+    },
+    "code-inference-hf": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Local Code Inference Server",
+      "options": {
+        "baseURL": "http://inference-hf:8081/v1"
+      },
+      "models": {
+        "hf": {
+          "name": "Local Model From HF"
+        }
+      }
     }
+
   },
   "model": "code-inference/model.gguf",
   "instructions": [
