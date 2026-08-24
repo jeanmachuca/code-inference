@@ -39,12 +39,38 @@ services:
       - "--port"
       - "8080"
       - "--ctx-size"
-      - "${CONTEXT_SIZE:-16384}"
+      - "${CONTEXT_SIZE:-262144}"
       - "--threads"
       - "${THREADS:-6}"
       - "--jinja"
     ports:
       - "8080:8080"
+    networks:
+      - internal
+
+  inference-llama-cpp:
+    container_name: "llama-cpp-inference-${NAME_SUFFIX:-common}"
+    profiles:
+      - stack
+      - inference
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    volumes:
+      - model_hf_data:/root/.cache/huggingface:rw
+    command:
+      - "-hf"
+      - "${MODEL_HF:-ggml-org/Qwen3.5-0.8B-GGUF:Q4_0}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8081"
+      - "--ctx-size"
+      - "${CONTEXT_SIZE:-262144}"
+      - "--threads"
+      - "${THREADS:-6}"
+      - "--jinja"
+    ports:
+      - "8081:8081"
     networks:
       - internal
 
@@ -105,6 +131,7 @@ volumes:
       type: none
       o: bind
       device: "${PWD}/models"
+  model_hf_data:
   training_data:
   opencode_config:
   opencode_data:
