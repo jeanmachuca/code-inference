@@ -43,8 +43,6 @@ services:
       - "--threads"
       - "${THREADS:-6}"
       - "--jinja"
-      - "--tools"
-      - "${TOOLS:-all}"
     ports:
       - "8080:8080"
     networks:
