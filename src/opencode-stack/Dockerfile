@@ -48,7 +48,14 @@ RUN apk --update --no-cache add \
     rust \
     cargo \
     build-base \
-    shellcheck
+    shellcheck \
+    make \
+    gcc \
+    musl-dev \
+    linux-headers \
+    cmake \
+    build-base
+
 
 # Copy dev requirements before installing
 COPY dev-requirements.txt /tmp/dev-requirements.txt
@@ -57,6 +64,10 @@ COPY dev-requirements.txt /tmp/dev-requirements.txt
 RUN git init && \
     pip install --no-cache-dir --break-system-packages -r /tmp/dev-requirements.txt && \
     pre-commit install
+
+RUN apk add --no-cache bash gcompat libstdc++ libgcc unzip && \
+    curl -fsSL https://bun.sh/install | bash && \
+    mv /root/.bun/bin/bun /usr/local/bin/
 
 # Create non-root user for running opencode
 RUN addgroup -S opencode && adduser -S -h /home/opencode -G opencode opencode
