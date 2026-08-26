@@ -56,7 +56,6 @@ RUN apk --update --no-cache add \
     cmake \
     build-base
 
-
 # Copy dev requirements before installing
 COPY dev-requirements.txt /tmp/dev-requirements.txt
 
