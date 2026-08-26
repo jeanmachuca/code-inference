@@ -64,6 +64,10 @@ RUN git init && \
     pip install --no-cache-dir --break-system-packages -r /tmp/dev-requirements.txt && \
     pre-commit install
 
+RUN apk add --no-cache bash gcompat libstdc++ libgcc unzip && \
+    curl -fsSL https://bun.sh/install | bash && \
+    mv /root/.bun/bin/bun /usr/local/bin/
+
 # Create non-root user for running opencode
 RUN addgroup -S opencode && adduser -S -h /home/opencode -G opencode opencode
 
